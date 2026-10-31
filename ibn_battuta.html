@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AR-RIHLA // Ibn Battuta 3D World Globe & 117,000 KM Travel Chronicle (1325–1354 CE)</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js r128 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- GSAP 3.12 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Space Grotesk', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+            serif: ['Amiri', 'serif']
+          },
+          colors: {
+            caravanGold: '#F59E0B',
+            dhowCyan: '#06B6D4',
+            parchment: '#FDE68A',
+            emeraldOasis: '#10B981'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #030712;
+      color: #F8FAFC;
+      font-family: 'Inter', sans-serif;
+    }
+
+    #globe-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      display: block;
+      cursor: grab;
+    }
+    #globe-canvas:active {
+      cursor: grabbing;
+    }
+
+    .rihla-glass {
+      background: rgba(8, 14, 28, 0.85);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      box-shadow: 0 20px 55px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .city-btn {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .city-btn:hover {
+      border-color: #F59E0B;
+      color: #FDE68A;
+      transform: translateY(-1px);
+    }
+    .city-btn.active {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.28), rgba(6, 182, 212, 0.24));
+      border-color: #F59E0B;
+      color: #FFFFFF;
+      box-shadow: 0 0 22px rgba(245, 158, 11, 0.35);
+    }
+
+    /* 2D Projected HTML Pins on 3D Globe */
+    #pins-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      overflow: hidden;
+    }
+
+    .globe-pin {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: auto;
+      cursor: pointer;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+      will-change: left, top;
+    }
+    .globe-pin:hover, .globe-pin.active-pin {
+      transform: translate(-50%, -110%) scale(1.1);
+      z-index: 45 !important;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(15, 23, 42, 0.95);
+      height: 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #F59E0B;
+      cursor: pointer;
+      border: 2px solid #030712;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.95);
+    }
+
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.35);
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(245, 158, 11, 0.45);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+
+<body class="relative w-screen h-screen overflow-hidden select-none">
+
+  <!-- 3D WebGL Globe Canvas -->
+  <canvas id="globe-canvas"></canvas>
+
+  <!-- 2D Projected HTML City Pins -->
+  <div id="pins-layer"></div>
+
+  <!-- ===================================================================== -->
+  <!-- TOP HEADER: TITLE, 12 HISTORIC CITY TABS, TOUR & LANGUAGE TOGGLE      -->
+  <!-- ===================================================================== -->
+  <header class="fixed top-3 left-3 right-3 z-30 pointer-events-none flex flex-wrap items-center justify-between gap-2">
+    <!-- Brand Identity -->
+    <div class="rihla-glass rounded-2xl px-4 py-2.5 pointer-events-auto flex items-center gap-3">
+      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 via-yellow-600 to-cyan-600 flex items-center justify-center shadow-lg shadow-amber-500/25 font-serif font-bold text-slate-950 text-lg">
+        رحلة
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-display font-extrabold text-xs sm:text-sm tracking-wider uppercase text-white">
+            AR-RIHLA // IBN BATTUTA 3D WORLD ATLAS
+          </h1>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 font-semibold hidden sm:inline">
+            117,000 KM • 44 COUNTRIES
+          </span>
+        </div>
+        <p class="text-[10px] font-mono text-cyan-200/80 mt-0.5">
+          29-Year Globetrotting Odyssey (1325–1354 CE) • Gold = Land Caravan • Cyan = Maritime Dhow
+        </p>
+      </div>
+    </div>
+
+    <!-- Center: Quick-Jump City Pills -->
+    <div id="top-city-bar" class="rihla-glass rounded-2xl p-1.5 pointer-events-auto flex items-center gap-1 overflow-x-auto max-w-full lg:max-w-2xl custom-scroll">
+      <!-- Populated dynamically by JS -->
+    </div>
+
+    <!-- Right: Auto-Voyage, Language Toggle & Audio -->
+    <div class="rihla-glass rounded-2xl px-3 py-1.5 pointer-events-auto flex items-center gap-2 ml-auto">
+      <button id="btn-tour" onclick="toggleAutoVoyage()" class="city-btn px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold text-emerald-300 cursor-pointer">
+        ▶ Auto-Safar
+      </button>
+      <button id="btn-lang" onclick="toggleLanguage()" class="city-btn px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold text-amber-300 cursor-pointer">
+        🌐 Roman Urdu / EN
+      </button>
+      <button id="btn-audio" onclick="toggleRihlaAudio()" class="city-btn px-2.5 py-1.5 rounded-xl text-xs font-mono text-cyan-300 cursor-pointer" title="Toggle Ambient Oud & Ocean Waves">
+        🔇 Audio
+      </button>
+      <button onclick=" togglePins()" id="btn-pins" class="city-btn px-2 py-1.5 rounded-xl text-xs font-mono text-slate-300 cursor-pointer hidden sm:inline">
+        🏷️ Pins
+      </button>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- LEFT PANEL: TELEMETRY & EXPLORER DISTANCE COMPARISON                  -->
+  <!-- ===================================================================== -->
+  <aside class="fixed top-20 left-3 z-20 w-[calc(100vw-24px)] sm:w-88 max-w-sm pointer-events-none flex flex-col gap-2.5">
+    <div class="rihla-glass rounded-3xl p-4 pointer-events-auto space-y-3.5">
+      <div class="flex items-center justify-between border-b border-white/10 pb-2">
+        <span id="city-badge" class="text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40 font-bold">
+          STATION 01 / 12 // TANGIER
+        </span>
+        <span id="city-year" class="text-xs font-mono text-cyan-300 font-bold">1325 CE (725 AH)</span>
+      </div>
+
+      <!-- Live Telemetry Grid -->
+      <div class="grid grid-cols-3 gap-2 font-mono text-xs text-center">
+        <div class="bg-slate-900/85 border border-white/10 rounded-xl p-2">
+          <span class="text-[9px] text-slate-400 block uppercase">CUMULATIVE KM</span>
+          <span id="tel-km" class="font-bold text-amber-300 text-sm">0 km</span>
+        </div>
+        <div class="bg-slate-900/85 border border-white/10 rounded-xl p-2">
+          <span class="text-[9px] text-slate-400 block uppercase">TRAVEL MODE</span>
+          <span id="tel-mode" class="font-bold text-cyan-300 text-sm">🐪 Caravan</span>
+        </div>
+        <div class="bg-slate-900/85 border border-white/10 rounded-xl p-2">
+          <span class="text-[9px] text-slate-400 block uppercase">COORDINATES</span>
+          <span id="tel-coords" class="font-bold text-emerald-300 text-xs">35.7°N, 5.8°W</span>
+        </div>
+      </div>
+
+      <!-- Historical Explorer Distance Comparison (Ibn Battuta vs. Zheng He vs. Marco Polo) -->
+      <div class="bg-slate-950/90 border border-white/10 rounded-2xl p-3.5 space-y-2.5 font-mono text-xs">
+        <div class="flex items-center justify-between text-[10px]">
+          <span class="text-slate-300 uppercase font-bold">📊 GREAT EXPLORERS COMPARISON</span>
+          <span class="text-amber-300 font-bold">World Record</span>
+        </div>
+
+        <!-- Ibn Battuta Bar -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[10px]">
+            <span class="text-white font-bold">1. Ibn Battuta (1325–1354)</span>
+            <span id="ibn-live-km" class="text-amber-300 font-bold">117,000 km</span>
+          </div>
+          <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+            <div id="ibn-bar" class="h-full bg-gradient-to-r from-amber-400 to-cyan-400 rounded-full transition-all duration-300" style="width: 100%"></div>
+          </div>
+        </div>
+
+        <!-- Zheng He Bar -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[10px]">
+            <span class="text-slate-300">2. Admiral Zheng He (1405–1433)</span>
+            <span class="text-cyan-300">~50,000 km</span>
+          </div>
+          <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+            <div class="h-full bg-cyan-500/70 rounded-full" style="width: 43%"></div>
+          </div>
+        </div>
+
+        <!-- Marco Polo Bar -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[10px]">
+            <span class="text-slate-400">3. Marco Polo (1271–1295)</span>
+            <span class="text-slate-400">~24,000 km</span>
+          </div>
+          <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+            <div class="h-full bg-slate-500 rounded-full" style="width: 21%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Legend & Globe Spin Control -->
+      <div class="flex items-center justify-between gap-2 pt-0.5 text-[11px] font-mono">
+        <div class="flex items-center gap-3">
+          <span class="flex items-center gap-1.5 text-amber-300">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>Caravan
+          </span>
+          <span class="flex items-center gap-1.5 text-cyan-300">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span>Maritime Dhow
+          </span>
+        </div>
+        <button onclick="toggleGlobeAutoSpin()" id="btn-spin" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/15 text-slate-300 cursor-pointer">
+          🔄 Spin: OFF
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- RIGHT PANEL: BILINGUAL CITY CHRONICLE & OBSERVATIONS                  -->
+  <!-- ===================================================================== -->
+  <aside class="fixed top-20 right-3 z-20 w-[calc(100vw-24px)] sm:w-96 max-w-md pointer-events-none hidden lg:flex flex-col gap-2.5">
+    <div class="rihla-glass rounded-3xl p-4 sm:p-5 pointer-events-auto space-y-3.5 max-h-[calc(100vh-175px)] overflow-y-auto custom-scroll">
+      <div class="flex items-center justify-between border-b border-white/10 pb-2">
+        <span class="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold">
+          📜 AR-RIHLA CITY CHRONICLE
+        </span>
+        <div class="flex items-center gap-1">
+          <button onclick="stepCity(-1)" class="w-6 h-6 rounded-lg bg-white/10 hover:bg-amber-500/30 text-xs font-mono flex items-center justify-center cursor-pointer">◀</button>
+          <button onclick="stepCity(1)" class="w-6 h-6 rounded-lg bg-white/10 hover:bg-amber-500/30 text-xs font-mono flex items-center justify-center cursor-pointer">▶</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between gap-2">
+          <h2 id="chr-title" class="font-display font-extrabold text-base sm:text-lg text-white leading-snug">
+            1. Tangier (Morocco) — Departure at Age 21
+          </h2>
+          <span id="chr-arabic" class="text-sm font-serif text-amber-300 shrink-0">طنجة</span>
+        </div>
+        <p id="chr-region" class="text-xs font-mono text-cyan-300 mt-0.5">
+          Marinid Sultanate • June 1325 CE
+        </p>
+      </div>
+
+      <p id="chr-desc" class="text-xs sm:text-[13px] text-slate-200 leading-relaxed"></p>
+
+      <ul id="chr-bullets" class="space-y-2 text-xs text-slate-200"></ul>
+
+      <!-- Direct Quote from Tuhfat an-Nuzzar (Ar-Rihla) -->
+      <div class="bg-gradient-to-br from-amber-500/15 via-slate-900/90 to-cyan-500/15 border border-amber-400/40 rounded-2xl p-3.5 space-y-1">
+        <span class="text-[10px] font-mono uppercase tracking-wider text-amber-300 font-bold block">
+          🖋️ IBN BATTUTA'S DIARY QUOTE (تحفة النظار)
+        </span>
+        <p id="chr-quote" class="text-xs italic text-slate-200 leading-relaxed"></p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- BOTTOM CHRONOLOGICAL DECADE & YEAR SCRUBBER (1325 – 1354 CE)          -->
+  <!-- ===================================================================== -->
+  <footer class="fixed bottom-3 left-3 right-3 z-30 pointer-events-none">
+    <div class="rihla-glass rounded-2xl px-4 py-2.5 pointer-events-auto max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-3 w-full sm:w-auto">
+        <span id="scrubber-year-badge" class="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/40 font-mono font-extrabold text-xs text-amber-300 whitespace-nowrap">
+          1354 CE • 117,000 KM
+        </span>
+        <div class="min-w-0">
+          <div id="scrubber-title" class="font-display font-bold text-xs sm:text-sm text-white truncate">
+            Chronological Odyssey Scrubber (1325 CE – 1354 CE)
+          </div>
+          <div class="text-[11px] font-mono text-slate-400 truncate">
+            Drag slider to progressively draw Ibn Battuta's 29-year journey across Africa, Sindh, India, Maldives &amp; China
+          </div>
+        </div>
+      </div>
+
+      <!-- Decade Quick Filters + Year Slider -->
+      <div class="flex items-center gap-2 w-full sm:w-96 shrink-0 font-mono text-[10px]">
+        <button onclick="scrubToYear(1328)" class="px-2 py-1 rounded bg-white/5 hover:bg-amber-500/20 border border-white/10 text-amber-300 cursor-pointer">1320s</button>
+        <button onclick="scrubToYear(1335)" class="px-2 py-1 rounded bg-white/5 hover:bg-amber-500/20 border border-white/10 text-amber-300 cursor-pointer">1330s</button>
+        <button onclick="scrubToYear(1354)" class="px-2 py-1 rounded bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-cyan-300 cursor-pointer">All 117K</button>
+        <input id="year-slider" type="range" min="1325" max="1354" value="1354" oninput="scrubToYear(this.value)" class="flex-1" />
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===================================================================== -->
+  <!-- JAVASCRIPT: 3D GLOBE, 12 AR-RIHLA CITIES, CURVED ARCS & BILINGUAL UI  -->
+  <!-- ===================================================================== -->
+  <script>
+    // =========================================================================
+    // 1. COMPLETE BILINGUAL DATASET FOR ALL 12 HISTORIC CITIES OF AR-RIHLA
+    // =========================================================================
+    let currentLang = 'ur'; // 'ur' = Roman Urdu, 'en' = English
+    let activeCityIdx = 0;
+    let showPins = true;
+    let autoSpinGlobe = false;
+    let autoVoyageTimer = null;
+
+    const CITIES = [
+      {
+        id: 0,
+        name: 'Tangier',
+        short: '1. Tangier',
+        arabic: 'طنجة — المغرب',
+        year: 1325,
+        km: 0,
+        mode: '🐪 Caravan',
+        routeType: 'land',
+        lat: 35.7595,
+        lon: -5.8340,
+        regionUr: 'Marinid Sultanate (Morocco) • Rajab 725 AH (June 1325 CE)',
+        regionEn: 'Marinid Sultanate (Morocco) • June 1325 CE',
+        titleUr: '1. Tangier (Tanja) — 21 Saal Ki Umar Mein Safar Ka Aaghaz',
+        titleEn: '1. Tangier (Morocco) — Departure at Age 21',
+        descUr: 'Abu Abdullah Muhammad Ibn Battuta ne 21 saal ki umar mein apne aabai shehar Tangier (Morocco) se Hajj aur ilm ki talash mein safar shuru kiya. Woh nahi jante thay ke yeh safar 29 saal aur 117,000 km tak phail jayega!',
+        descEn: 'At just 21 years old, Abu Abdullah Muhammad Ibn Battuta set out alone from his native Tangier to perform the Hajj and study under the scholars of the Islamic world—beginning a 29-year odyssey spanning 117,000 km.',
+        bulletsUr: [
+          '🐪 <strong>Akele Safar Ki Shuruat:</strong> Shuruat mein unke sath na koi qafila tha aur na koi sathi, magar North Africa ke sahil ke sath sath unhein ulama aur mehmandaron ka sath milta gaya.',
+          '📜 <strong>Tuhfat an-Nuzzar (Ar-Rihla):</strong> Jab woh 1354 mein wapas Fez (Morocco) laute to Sultan Abu Inan ke kehne par Ibn Juzayy ne unka safarnama "Ar-Rihla" tehreer kiya.'
+        ],
+        bulletsEn: [
+          '🐪 <strong>Solo Departure:</strong> Left Tangier riding a donkey along the North African coast through Tlemcen, Tunis, and Tripoli.',
+          '📜 <strong>The Immortal Chronicle:</strong> Upon returning 29 years later, he dictated his memories to scholar Ibn Juzayy, creating the famous "Rihla".'
+        ],
+        quoteUr: '"Main apne ghar se akele nikla, jaise parinda apna ghosla chorta hai; mere walidain zinda thay aur un se judai ka gham mere dil par bhari tha."',
+        quoteEn: '"I set out alone, having neither fellow-traveler in whose companionship I might find cheer, nor caravan whose party I might join..."'
+      },
+      {
+        id: 1,
+        name: 'Cairo',
+        short: '2. Cairo',
+        arabic: 'القاهرة — مصر',
+        year: 1326,
+        km: 4200,
+        mode: '🐪 Caravan',
+        routeType: 'land',
+        lat: 30.0444,
+        lon: 31.2357,
+        regionUr: 'Mamluk Sultanate (Egypt) • 1326 CE',
+        regionEn: 'Mamluk Sultanate (Egypt) • Spring 1326 CE',
+        titleUr: '2. Qahira (Cairo) & Alexandria — "Tamam Shehron Ki Maan"',
+        titleEn: '2. Cairo & Alexandria — "Mother of Cities"',
+        descUr: 'Misr (Egypt) pohanch kar Ibn Battuta ne Alexandria ke mashhoor Pharos Lighthouse ka muaina kiya aur Qahira (Cairo) ki shan-o-shaukat dekh kar dang reh gaye:',
+        descEn: 'Arriving in Mamluk Egypt, Ibn Battuta inspected the ancient Pharos Lighthouse of Alexandria and marveled at the bustling metropolis of Cairo along the Nile:',
+        bulletsUr: [
+          '🏛️ <strong>Bimaristan Qalawun (Hospital):</strong> Unhon ne Qahira ke azeem shifakhane (hospital) ki tareef ki jahan mareezon ka muft ilaj aur dawaon ka behtareen nizam tha.',
+          '🎓 <strong>Al-Azhar & Madaris:</strong> Darya-e-Neel ke kinare hazaron oont, kashtiyan aur ilmi madaris dekh kar unhon ne Qahira ko duniya ka sab se roshan shehar qarar diya.'
+        ],
+        bulletsEn: [
+          '🏥 <strong>Qalawun Hospital Complex:</strong> Documented Cairo’s monumental Bimaristan (hospital), praising its fountain courtyards and free medical care.',
+          '⛵ <strong>The Nile Riverfront:</strong> Described 36,000 vessels sailing the Nile carrying grain, scholars, and merchants.'
+        ],
+        quoteUr: '"Qahira shehron ki maan hai, aalam-e-Islam ka markaz hai jahan aane جانے walon ki lehar samandar ki tarah maujzan rehti hai."',
+        quoteEn: '"Mistress of broad provinces and fruitful lands, boundless in multitude of buildings, peerless in beauty and splendor!"'
+      },
+      {
+        id: 2,
+        name: 'Damascus',
+        short: '3. Damascus',
+        arabic: 'دمشق — الشام',
+        year: 1326,
+        km: 5800,
+        mode: '🐪 Caravan',
+        routeType: 'land',
+        lat: 33.5138,
+        lon: 36.2765,
+        regionUr: 'Bilad al-Sham (Syria) • Ramadan 1326 CE',
+        regionEn: 'Mamluk Syria • August 1326 CE',
+        titleUr: '3. Dimashq (Damascus) — Umayyad Masjid Aur Waqf Nizam',
+        titleEn: '3. Damascus — The Umayyad Mosque & Charitable Endowments',
+        descUr: 'Hajj ke qafle ke sath jane ke liye Ibn Battuta Jerusalem aur Hebron se hote hue Dimashq (Damascus) pohanche aur wahan Ramadan guzara:',
+        descEn: 'Traveling north through Jerusalem to join the official Syrian Hajj caravan, Ibn Battuta spent Ramadan in Damascus studying at the Umayyad Mosque:',
+        bulletsUr: [
+          '🕌 <strong>Jami al-Umawi (Umayyad Mosque):</strong> Unhon ne Umayyad Masjid ke sunehri mosaics, baghat aur 70 se zyada ustadon se Hadith ki asnad (certificates) hasil keen.',
+          '🏺 <strong> Toote Bartanon Ka Waqf:</strong> Unhon ne likha ke Dimashq mein aise falahi Awqaf (endowments) thay jo ghulamon aur bachon se toot jane wale chini ke bartanon ke paise ada karte thay taake unhein daant na pare!'
+        ],
+        bulletsEn: [
+          '🕌 <strong>Academic Certificates (Ijazat):</strong> Earned teaching diplomas from renowned Hadith scholars inside the Umayyad Mosque.',
+          '🏺 <strong>Endowments for Broken Dishes:</strong> Recorded unique charitable trusts (Awqaf) dedicated to replacing porcelain dishes accidentally dropped by poor servants.'
+        ],
+        quoteUr: '"husn-o-jamal mein Dimashq tamam shehron par sabqat le gaya hai; yeh zameen par jannat ki manind hai."',
+        quoteEn: '"Damascus surpasses all other cities in beauty, and no description, however长, can do justice to its charms."'
+      },
+      {
+        id: 3,
+        name: 'Makkah',
+        short: '4. Makkah',
+        arabic: 'مكة المكرمة',
+        year: 1326,
+        km: 7600,
+        mode: '🐪 Caravan',
+        routeType: 'land',
+        lat: 21.4225,
+        lon: 39.8262,
+        regionUr: 'Hijaz (Arabia) • Dhul-Hijjah 1326 CE (First of 4 Hajjs)',
+        regionEn: 'Hijaz • Autumn 1326 CE (Completed 4 Pilgrimages)',
+        titleUr: '4. Makkah & Madinah — Hajj Ki Takmeel Aur Roohani Markaz',
+        titleEn: '4. Makkah & Madinah — The Spiritual Pivot of the Rihla',
+        descUr: 'Dimashq se रेगिस्तानी qafle ke sath Madinah Munawwarah ki hazri dete hue Ibn Battuta Makkah pohanche aur apna pehla Hajj ada kiya (apni zindagi mein unhon ne kul 4 Hajj kiye):',
+        descEn: 'Journeying south along the desert pilgrim road via Madinah, Ibn Battuta entered Makkah to fulfill his lifelong dream—performing the first of four Hajj pilgrimages:',
+        bulletsUr: [
+          '🕋 <strong>Kaaba Sharif Aur Zamzam:</strong> Unhon ne Masjid al-Haram ke tawaf, Maqam-e-Ibrahim, aur Makkah ke logon ki sakhawat aur mehmandari ka tafseeli hal likha.',
+          '🧭 <strong>Naya Faisla (Wapsi Ke Bajaye Aage Ka Safar):</strong> Hajj mukammal karne ke baad Morocco wapas jane ke bajaye unhon ne faisla kiya ke woh Iraq aur Persia ki taraf safar jari rakhenge!'
+        ],
+        bulletsEn: [
+          '🕋 <strong>Two Years as a Mujawir:</strong> Later returned to live in Makkah for nearly two years immersed in prayer and scholarship.',
+          '🧭 <strong>The Turning Point:</strong> Instead of returning home to Morocco after Hajj, he decided to join a caravan heading northeast toward Iraq and Persia.'
+        ],
+        quoteUr: '"Jab hamari aankhon ne Baitullah (Kaaba) ka deedar kiya to dil khushi aur shukr se bhar gaya."',
+        quoteEn: '"Here we beheld the Illustrious Kaaba—may Allah increase it in veneration—looking like a bride displayed upon the bridal-throne."'
+      },
+      {
+        id: 4,
+        name: 'Baghdad',
+        short: '5. Baghdad & Kilwa',
+        arabic: 'بغداد و شيراز',
+        year: 1327,
+        km: 19500,
+        mode: '⛵ Dhow & Caravan',
+        routeType: 'sea',
+        lat: 33.3152,
+        lon: 44.3661,
+        regionUr: 'Ilkhanate Iraq, Persia & East African Swahili Coast • 1327–1331 CE',
+        regionEn: 'Iraq, Persia & Swahili Coast (Mogadishu / Kilwa) • 1327–1331 CE',
+        titleUr: '5. Baghdad, Shiraz Aur Swahili Coast (Kilwa) Ka Samandari Safar',
+        titleEn: '5. Baghdad, Tabriz & Maritime Voyage to Kilwa (East Africa)',
+        descUr: 'Makkah se Ibn Battuta Najaf, Wasit, Basra, Shiraz, Isfahan aur Baghdad gaye. Us ke baad unhon ne Yemen aur Bahr-e-Hind (Indian Ocean) mein **Dhow (badbani kashti)** ke zariye Mogadishu, Mombasa aur Kilwa (Tanzania) ka safar kiya:',
+        descEn: 'After visiting Baghdad, Shiraz, and Tabriz under Ilkhanid rule, Ibn Battuta sailed by wooden dhow down the Red Sea and East African Swahili coast to Mogadishu, Mombasa, and Kilwa:',
+        bulletsUr: [
+          '🏛️ <strong>Baghdad Ki Bahali:</strong> 1258 ke tufan ke baad Baghdad dobara ilm aur hammamon (public baths) se aabad ho raha tha.',
+          '⛵ <strong>Kilwa & Mogadishu (East Africa):</strong> Monsoon hawaon ke zariye woh خطِ استوا (Equator) ke niche Kilwa (Tanzania) tak gaye aur wahan ki coral-stone masajid aur sone ki tijarat ko dekha.'
+        ],
+        bulletsEn: [
+          '⛵ <strong>Swahili Maritime Civilization:</strong> Praised Kilwa (modern Tanzania) as one of the most finely built coastal cities in the world.',
+          '🏛️ <strong>Ilkhanid Royal Caravan:</strong> Traveled alongside Sultan Abu Sa’id’s royal mahalla (moving camp) across Iraq and Persia.'
+        ],
+        quoteUr: '"Kilwa ka shehar duniya ke khoobsurat tareen aur behtareen tameer shuda sahili shehron mein se aik hai."',
+        quoteEn: '"The city of Kilwa is amongst the most handsome of cities and most elegantly built."'
+      },
+      {
+        id: 5,
+        name: 'Constantinople',
+        short: '6. Constantinople',
+        arabic: 'القسطنطينية والأناضول',
+        year: 1332,
+        km: 34000,
+        mode: '🐪 Caravan & Ship',
+        routeType: 'land',
+        lat: 41.0082,
+        lon: 28.9784,
+        regionUr: 'Anatolia, Golden Horde & Byzantine Empire • 1332 CE',
+        regionEn: 'Anatolia, Black Sea & Constantinople • 1332 CE',
+        titleUr: '6. Anatolia (Akhi Brotherhood) & Qustuntuniya (Constantinople)',
+        titleEn: '6. Anatolia & Diplomatic Mission to Constantinople',
+        descUr: 'Misr se Anatolia (Turkey) pohanch kar unhon ne "Akhi" (Futuwwa) jawano ki be-misal mehmandari dekhi, phir Black Sea paar kar ke Golden Horde ke Khan Ozbek ke darbar aur wahan se Byzantine shehzadi ke qafle ke sath Qustuntuniya (Constantinople) gaye:',
+        descEn: 'Crossing Anatolia—where the Akhi guilds competed to host travelers—Ibn Battuta joined Golden Horde ruler Öz Beg Khan and escorted a Byzantine princess to Constantinople:',
+        bulletsUr: [
+          '🤝 <strong>Anatolia Ki Akhi Mehmandari:</strong> Turkey ke har shehar mein Akhi brotherhood ke log musafiron ko apne khanqahon mein le ja kar shahi khana khilate thay.',
+          '⛪ <strong>Hagia Sophia & Emperor Andronikos III:</strong> Qustuntuniya mein unhon ne Byzantine Emperor se mulaqat ki aur Hagia Sophia ke bahar ke azeem architecture ka mushahida kiya.'
+        ],
+        bulletsEn: [
+          '🤝 <strong>Anatolian Hospitality:</strong> Marveled at the Akhi youth fraternities in Turkey who warmly hosted foreign travelers.',
+          '🏛️ <strong>Audience with the Emperor:</strong> Met Byzantine Emperor Andronikos III and spent a month exploring the streets and harbors of Constantinople.'
+        ],
+        quoteUr: '"Anatolia ke logon se zyada shafeeq aur musafiron se mohabbat karne wala maine duniya mein koi nahi dekha."',
+        quoteEn: '"In the lands of Anatolia, we met nothing but kindness, generosity, and noble hospitality."'
+      },
+      {
+        id: 6,
+        name: 'Samarkand',
+        short: '7. Samarkand',
+        arabic: 'سمرقند و بخارى',
+        year: 1333,
+        km: 44500,
+        mode: '🐪 Caravan',
+        routeType: 'land',
+        lat: 39.6542,
+        lon: 66.9597,
+        regionUr: 'Chagatai Khanate (Transoxiana / Central Asia) • 1333 CE',
+        regionEn: 'Transoxiana (Uzbekistan & Afghanistan) • 1333 CE',
+        titleUr: '7. Bukhara, Samarkand, Balkh Aur Koh-e-oor (Hindu Kush) Paar Karna',
+        titleEn: '7. Samarkand, Bukhara & Crossing the Hindu Kush',
+        descUr: 'Volga darya aur Khwarazm ke barfani raston se guzar kar Ibn Battuta Bukhara aur Samarkand pohanche, jahan Chagatai Khan Tarmashirin ne unka shahi istiqbal kiya:',
+        descEn: 'Braving the freezing steppes of Central Asia via Khwarazm and Bukhara, Ibn Battuta reached glorious Samarkand before crossing the snowbound Hindu Kush mountains into South Asia:',
+        bulletsUr: [
+          '⛺ <strong>Sultan Tarmashirin Ki Mehmandari:</strong> Chagatai hukmran Tarmashirin ne sakht sardi mein unhein 54 din tak apna mehman rakha aur resham ke libas aur sone ke sikke ata kiye.',
+          '🏔️ <strong>Hindu Kush ("Slayer of Hind"):</strong> Barf par namde (felt mats) bicha kar unke qafle ne 4,000 meter buland Hindu Kush pahari silsila paar kiya.'
+        ],
+        bulletsEn: [
+          '🌟 <strong>Jewel of Transoxiana:</strong> Described Samarkand as one of the grandest and most delightful cities on Earth.',
+          '🏔️ <strong>Crossing the Hindu Kush:</strong> Spread felt cloths ahead of the camels so they would not sink into the deep mountain snow.'
+        ],
+        quoteUr: '"Samarkand duniya ke sab se bade, haseen aur mukammal shehron mein se aik hai jo naher ke kinare aabad hai."',
+        quoteEn: '"Samarkand is one of the largest and most perfectly beautiful cities in the world."'
+      },
+      {
+        id: 7,
+        name: 'Indus Valley (Sindh)',
+        short: '8. Sindh / Multan',
+        arabic: 'وادي السند — سيوستان وملتان',
+        year: 1333,
+        km: 49200,
+        mode: '🐪 Caravan & River Boat',
+        routeType: 'land',
+        lat: 27.5500,
+        lon: 68.2000,
+        regionUr: 'Wadi-e-Sindh (Sehwan, Lahari Bandar, Bakhar & Multan) • Muharram 734 AH (Sept 1333 CE)',
+        regionEn: 'Indus Valley (Sindh & Multan, Pakistan) • September 1333 CE',
+        titleUr: '8. Wadi-e-Sindh (Sehwan, Lahari Bandar & Multan) — Darya-e-Sindh Aur Barid Nizam',
+        titleEn: '8. Indus Valley (Sindh & Multan) — Postal Relay & River Voyage',
+        descUr: '12 September 1333 (1 Muharram 734 AH) ko Ibn Battuta ne **Darya-e-Sindh (Panj-Ab / Indus River)** paar kiya! Unhon ne Janani, **Sehwan (Siwistan)**, **Lahari Bandar** (Karachi ke qareeb samandari bandargah), Bakhar, Uch Sharif aur **Multan** ka tafseeli hal likha:',
+        descEn: 'On September 12, 1333 CE (1 Muharram 734 AH), Ibn Battuta reached the mighty Indus River (Nahr al-Sind). He traveled extensively across Sindh—visiting Janani, Sehwan, Lahari Bandar (near modern Karachi), Bakhar, Uch, and Multan:',
+        bulletsUr: [
+          '🐎 <strong>Sindh Se Delhi Ka "Barid" (5-Day Express Postal System):</strong> Ibn Battuta ne likha ke Sindh se Delhi tak aam safar 50 din ka tha, magar Sultan ka daak nizam (**Uluq** = ghursawar relay, aur **Dawa** = har meel par ghanti bajate tez-raftar runners) Sindh ki khabrein aur taza phal sirf **5 din** mein Delhi pohancha deta tha!',
+          '⛵ <strong>Sehwan, Lahari Bandar & Darya-e-Sindh:</strong> Unhon ne Sindh ke Gubernur ki shahi kashti mein Darya-e-Sindh ka safar kiya aur Lahari Bandar ki samandari tijarat ko bayan kiya.',
+          '🦏 <strong>Gainde (Rhinoceros) Ka Pehla Mushahida:</strong> Sindh ke junglat mein unhon ne zindagi mein pehli baar एक-सींग والا Gainda (Indian Rhinoceros) dekha!'
+        ],
+        bulletsEn: [
+          '🏇 <strong>5-Day Sindh-to-Delhi Express Mail (Al-Barid):</strong> Marvelled at the postal system connecting Sindh to Delhi—using horse relays (*Uluq*) and bell-ringing foot runners (*Dawa*) stationed every third of a mile to deliver intelligence and fresh Khurasani fruit in just 5 days instead of 50!',
+          '⛵ <strong>Sehwan, Lahari Bandar & Multan:</strong> Sailed down the Indus to the thriving port of Lahari Bandar near modern Karachi before traveling through Bakhar and Uch to Multan.',
+          '🦏 <strong>First Sighting of the Rhinoceros:</strong> Recorded his amazement at encountering the one-horned Indus rhinoceros (*Karkaddan*) in the reeds of Sindh.'
+        ],
+        quoteUr: '"Darya-e-Sindh duniya ke azeem tareen daryoon mein se hai... Aur daak ke har-kaare (runners) Sindh se Delhi ka 50 din ka fasla sirf 5 din mein tay kar lete hain!"',
+        quoteEn: '"The river of Sind (Indus) is one of the greatest rivers in the world... By the foot-post (dawa), news from Sind reaches the Sultan in Delhi in five days, though the normal journey takes fifty!"'
+      },
+      {
+        id: 8,
+        name: 'Delhi',
+        short: '9. Delhi',
+        arabic: 'دهلي — الهند',
+        year: 1334,
+        km: 52500,
+        mode: '🐪 Caravan',
+        routeType: 'land',
+        lat: 28.6139,
+        lon: 77.2090,
+        regionUr: 'Delhi Sultanate (Tughlaq Dynasty) • 1334–1341 CE (8 Years as Qadi)',
+        regionEn: 'Delhi Sultanate • 1334–1341 CE (Appointed Chief Judge & Envoy)',
+        titleUr: '9. Dar-ul-Khilafa Delhi — 8 Saal Qadi (Chief Judge) Aur Safeer',
+        titleEn: '9. Delhi — 8 Years as Grand Qadi & Appointed Ambassador to China',
+        descUr: 'Multan se hote hue Ibn Battuta Delhi pohanche jahan Sultan Muhammad bin Tughlaq ne unhein **Delhi ka Qadi (Judge)** muqarrar kiya aur hazaron sone ke dinar inam mein diye:',
+        descEn: 'Welcomed lavishly in Delhi by Sultan Muhammad bin Tughlaq, Ibn Battuta served for nearly eight years as a royal Qadi (Judge) and administrator of Sultan Qutbuddin’s mausoleum:',
+        bulletsUr: [
+          '🕌 <strong>Qutb Minar & Quwwat-ul-Islam Masjid:</strong> Unhon ne Qutb Minar ke bare mein likha ke rooye zameen par is se buland aur shandaar minar koi nahi.',
+          '🐉 <strong>Cheen (China) Ki Safarat:</strong> 1341 CE mein Sultan Muhammad bin Tughlaq ne unhein 100 ghoron aur shahi tohfon ke sath Yuan Emperor of China ke darbar mein apna **Safeer (Ambassador)** bana kar bheja!'
+        ],
+        bulletsEn: [
+          '🕌 <strong>Architectural Marvels:</strong> Described the Qutb Minar as having "no parallel in the lands of Islam" and detailed Delhi’s 28 gates and vast reservoirs.',
+          '🐉 <strong>Imperial Embassy to China:</strong> In 1341, Sultan Muhammad bin Tughlaq appointed Ibn Battuta to lead a grand diplomatic embassy to the Yuan Emperor of China.'
+        ],
+        quoteUr: '"Delhi ka shehar wus\'at aur aabadi mein mashriq-e-islami ka sab se bara aur shandaar shehar hai."',
+        quoteEn: '"The city of Delhi is of vast extent and population, the largest city in the entire Muslim East."'
+      },
+      {
+        id: 9,
+        name: 'Maldives',
+        short: '10. Maldives',
+        arabic: 'ذيب المهل — المالديف',
+        year: 1343,
+        km: 68000,
+        mode: '⛵ Maritime Dhow',
+        routeType: 'sea',
+        lat: 4.1755,
+        lon: 73.5093,
+        regionUr: 'Dhibat al-Mahal (Maldives Islands) • 1343–1344 CE',
+        regionEn: 'Maldives Archipelago • 1343–1344 CE (Chief Qadi)',
+        titleUr: '10. Maldives (Dhibat al-Mahal) — 2,000 Coral Islands & Chief Qadi',
+        titleEn: '10. The Maldives — Chief Judge of the Coral Atolls & Cowrie Shells',
+        descUr: 'Hindustan ke Malabar sahil (Calicut) se samandari safar karte hue Ibn Battuta Maldives (Dhibat al-Mahal) pohanche, jahan ki Malika Khadija ne unhein Chief Qadi muqarrar kiya:',
+        descEn: 'Sailing south from Calicut (Malabar Coast), Ibn Battuta landed in the Maldives archipelago, where Sultana Khadija’s court appointed him Chief Judge:',
+        bulletsUr: [
+          '🐚 <strong>Cowrie Shells (Kauriyon) Ki Currency:</strong> Unhon ne likha ke Maldives ke log sone-chandi ke bajaye samandari seafiyon (**Cowrie shells**) ko currency ke taur par istemal karte thay aur West Africa tak bramad karte thay!',
+          '🥥 <strong>Nariyal (Coconut) Ke Karishme:</strong> Unhon ne nariyal ke darakht ki tareef ki jis se kashtiyon ki rassiyan, tel, doodh aur shehad tayyar hota tha.'
+        ],
+        bulletsEn: [
+          '🐚 <strong>Global Cowrie Shell Currency:</strong> Documented how Maldivian cowrie shells served as international currency exported all the way to Bengal and West Africa.',
+          '🏝️ <strong>2,000 Ringed Atolls:</strong> Described the precision of Maldivian coir-stitched wooden ships and tropical island life.'
+        ],
+        quoteUr: '"Maldives ke jazeere duniya ke ajeeb-o-ghareeb aajaibat mein se hain; yeh taqreeban 2,000 jazeere hain jo angoothi ke halqon ki tarah biche hain."',
+        quoteEn: '"The islands of the Maldives are one of the wonders of the world, numbering about two thousand in ring-like clusters."'
+      },
+      {
+        id: 10,
+        name: 'Sumatra & Bengal',
+        short: '11. Sumatra',
+        arabic: 'سومطرة و البنغال',
+        year: 1345,
+        km: 84000,
+        mode: '⛵ Chinese Junk',
+        routeType: 'sea',
+        lat: 5.1801,
+        lon: 97.1507,
+        regionUr: 'Sri Lanka, Bengal (Sylhet) & Samudera Pasai Sultanate (Indonesia) • 1345 CE',
+        regionEn: 'Sri Lanka, Bengal & Samudera Pasai (Sumatra, Indonesia) • 1345 CE',
+        titleUr: '11. Sri Lanka, Bengal (Shah Jalal) & Sumatra (Indonesia)',
+        titleEn: '11. Sri Lanka, Bengal & Sultanate of Samudera Pasai (Indonesia)',
+        descUr: 'Maldives se Sri Lanka (Adam\'s Peak) aur Bengal (jahan unhon ne Sylhet mein Hazrat Shah Jalal Mujarrad se mulaqat ki) hote hue woh **Sumatra (Indonesia)** ki Islami riyasat Samudera Pasai pohanche:',
+        descEn: 'After climbing Adam’s Peak in Sri Lanka and meeting Sufi saint Shah Jalal in Sylhet (Bengal), Ibn Battuta sailed across the Strait of Malacca to the Sultanate of Samudera Pasai in Sumatra:',
+        bulletsUr: [
+          '🌿 <strong>Kafoor, Laung Aur Masalon Ke Jazeere:</strong> Unhon ne Sumatra ke hare-bhare junglat, kafoor (camphor), laung (cloves) aur agarwood ki tijarat ka hal likha.',
+          '⛵ <strong>Sultan Al-Malik Az-Zahir Ka Jahaz:</strong> Sumatra ke musalman Sultan ne unhein Cheen (China) jane ke liye apna shahi **Chinese Junk (jahaz)** faraham kiya.'
+        ],
+        bulletsEn: [
+          '🕌 <strong>Southeast Asian Islam:</strong> Hosted warmly by Sultan Al-Malik Al-Zahir of Samudera Pasai, a scholarly ruler who debated jurisprudence with jurists.',
+          '⛵ <strong>Voyage to the South China Sea:</strong> Outfitted by the Sultan with a large Chinese Junk to sail north toward Quanzhou.'
+        ],
+        quoteUr: '"Sumatra ka jazeera sar-sabz aur shandaar hai; is ke Sultan Al-Malik Az-Zahir ilm aur ulama se be-panah mohabbat rakhte hain."',
+        quoteEn: '"We reached the island of Jawa (Sumatra), green and flourishing, ruled by the learned Sultan Al-Malik Al-Zahir."'
+      },
+      {
+        id: 11,
+        name: 'Quanzhou & Mali',
+        short: '12. Quanzhou & Timbuktu',
+        arabic: 'الزيتون (الصين) و تمبكتو',
+        year: 1354,
+        km: 117000,
+        mode: '⛵ Junk & 🐪 Sahara Caravan',
+        routeType: 'sea',
+        lat: 24.8741,
+        lon: 118.6757,
+        regionUr: 'Zayton (Quanzhou, China) & Final Return via Granada & Timbuktu (Mali) • 1346–1354 CE',
+        regionEn: 'Quanzhou (China), Al-Andalus (Granada) & Mali Empire (Timbuktu) • 1346–1354 CE',
+        titleUr: '12. Quanzhou (China) Se Granada Aur Timbuktu (Mali) — 117,000 KM Mukammal!',
+        titleEn: '12. Quanzhou (China) & Final Sahara Expedition to Timbuktu (117,000 KM)',
+        descUr: 'Ibn Battuta Cheen ki azeem bandargah **Zayton (Quanzhou)**, Guangzhou aur Grand Canal tak gaye! Wahan se wapas Morocco aane ke baad unhon ne Al-Andalus (**Granada**) aur Sahara Desert paar kar ke **Mali Empire (Timbuktu)** ka aakhri safar kiya—aur kul **117,000 km** ka aalami record qaim kiya!',
+        descEn: 'Landing at the mega-port of Zayton (Quanzhou, China), Ibn Battuta explored Hangzhou and the Grand Canal before returning west—completing two final expeditions to Granada (Al-Andalus) and across the Sahara Desert to Timbuktu (Mali Empire):',
+        bulletsUr: [
+          '💴 <strong>Cheen Ki Kaghazi Currency (Paper Money) & Porcelain:</strong> Unhon ne Cheen ke kaghazi noton (paper currency), resham, chini ke bartanon aur musafir-nawazi ki aman-o-aman ka chashm-deed hal likha.',
+          '🌍 <strong>Granada & Timbuktu (Mali Empire):</strong> 1350–1353 CE mein unhon ne Spain (Granada) aur Sahara ke namak aur sone ke qafilon ke sath **Timbuktu aur Mali** ka safar kar ke 117,000 km mukammal kiye!'
+        ],
+        bulletsEn: [
+          '💴 <strong>Chinese Paper Currency & Silk:</strong> Amazed by Yuan China’s paper money system, gigantic multi-deck junks, and master portrait painters.',
+          '🐪 <strong>Trans-Saharan Finale (Timbuktu):</strong> Concluded his travels by crossing the Sahara Desert to the gold-rich Empire of Mali and Timbuktu before dictating the *Rihla* in Fez in 1354 CE.'
+        ],
+        quoteUr: '"Alhamdulillah, maine apni khwahish pa li: rooye zameen par aisa safar kiya jaisa mere ilm mein kisi aur ne nahi kiya!"',
+        quoteEn: '"I have indeed—praise be to God—attained my desire in this world, which was to travel through the Earth, and I have attained in this respect what no other person has attained to my knowledge."'
+      }
+    ];
+
+    // Additional Western Finale Arcs (Tangier -> Granada & Tangier -> Timbuktu) drawn when year >= 1350
+    const FINALE_WEST_ARCS = [
+      { fromLat: 35.7595, fromLon: -5.8340, toLat: 37.1773, toLon: -3.5986, year: 1350, type: 'sea' }, // Granada
+      { fromLat: 35.7595, fromLon: -5.8340, toLat: 16.7666, toLon: -3.0026, year: 1353, type: 'land' } // Timbuktu (Sahara)
+    ];
+
+    // =========================================================================
+    // 2. THREE.JS 3D WORLD GLOBE, PROCEDURAL CARTOGRAPHY & CURVED ARCS
+    // =========================================================================
+    const canvas = document.getElementById('globe-canvas');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x030712);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.5, 500);
+    const GLOBE_RADIUS = 24;
+
+    const orbit = {
+      theta: 0.9,     // Longitude camera angle
+      phi: 1.15,      // Latitude camera angle
+      radius: 68,
+      isDragging: false,
+      prevX: 0,
+      prevY: 0
+    };
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
+
+    // Celestial Starfield Background
+    const STAR_COUNT = 2400;
+    const starGeo = new THREE.BufferGeometry();
+    const starPos = new Float32Array(STAR_COUNT * 3);
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const r = 150 + Math.random() * 140;
+      const t = Math.random() * Math.PI * 2;
+      const p = Math.acos(2 * Math.random() - 1);
+      starPos[i * 3] = r * Math.sin(p) * Math.cos(t);
+      starPos[i * 3 + 1] = r * Math.sin(p) * Math.sin(t);
+      starPos[i * 3 + 2] = r * Math.cos(p);
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const starsMesh = new THREE.Points(
+      starGeo,
+      new THREE.PointsMaterial({ color: 0xfde68a, size: 0.75, transparent: true, opacity: 0.8 })
+    );
+    scene.add(starsMesh);
+
+    // Lighting
+    scene.add(new THREE.AmbientLight(0xdbeafe, 0.85));
+    const sunLight = new THREE.DirectionalLight(0xfef3c7, 1.35);
+    sunLight.position.set(60, 45, 55);
+    scene.add(sunLight);
+
+    // Master Globe Group
+    const globeGroup = new THREE.Group();
+    scene.add(globeGroup);
+
+    // Procedural 14th-Century Afro-Eurasian Cartography Texture (Al-Idrisi / Golden Age Atlas Style)
+    function createWorldMapTexture() {
+      const c = document.createElement('canvas');
+      c.width = 2048;
+      c.height = 1024;
+      const ctx = c.getContext('2d');
+
+      // Deep Indigo-Navy Ocean Base
+      const oceanGrad = ctx.createLinearGradient(0, 0, 0, 1024);
+      oceanGrad.addColorStop(0, '#040d1a');
+      oceanGrad.addColorStop(0.5, '#082038');
+      oceanGrad.addColorStop(1, '#040d1a');
+      ctx.fillStyle = oceanGrad;
+      ctx.fillRect(0, 0, 2048, 1024);
+
+      // Subtle Latitude / Longitude Cartographic Grid Lines & Compass Rhumb Lines
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.14)';
+      ctx.lineWidth = 1.5;
+      for (let x = 0; x <= 2048; x += 128) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1024); ctx.stroke();
+      }
+      for (let y = 0; y <= 1024; y += 128) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(2048, y); ctx.stroke();
+      }
+
+      // Helper to convert (lat, lon) to (u, v) canvas pixels
+      // Three.js SphereGeometry UV mapping: u = (lon + 180) / 360, v = (90 - lat) / 180
+      const pt = (lat, lon) => [
+        ((lon + 180) / 360) * 2048,
+        ((90 - lat) / 180) * 1024
+      ];
+
+      function drawContinentPolygon(coords, fillStyle, strokeStyle) {
+        ctx.beginPath();
+        coords.forEach(([lat, lon], idx) => {
+          const [px, py] = pt(lat, lon);
+          if (idx === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.closePath();
+        ctx.fillStyle = fillStyle;
+        ctx.fill();
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+
+      const landFill = '#292218';
+      const landStroke = '#d97706';
+
+      // 1. Africa Continent Polygon
+      drawContinentPolygon([
+        [36, -6], [37, 10], [32, 32], [12, 51], [-2, 41], [-15, 40],
+        [-34, 20], [-18, 12], [4, 9], [5, -8], [15, -17], [28, -13]
+      ], landFill, landStroke);
+
+      // 2. Arabian Peninsula
+      drawContinentPolygon([
+        [30, 32], [32, 36], [30, 48], [24, 56], [22, 60], [12, 44], [28, 34]
+      ], '#332819', '#f59e0b');
+
+      // 3. Europe & Mediterranean North Shore
+      drawContinentPolygon([
+        [36, -9], [43, -9], [48, -4], [54, 8], [60, 30], [47, 40],
+        [41, 29], [38, 24], [40, 18], [43, 12], [42, 3], [36, -5]
+      ], landFill, landStroke);
+
+      // 4. Asia (Anatolia, Persia, Central Asia, Sindh/India, Southeast Asia & China)
+      drawContinentPolygon([
+        [41, 29], [45, 40], [55, 65], [55, 125], [40, 122], [30, 122],
+        [22, 114], [10, 105], [1, 104], [16, 97], [22, 90], [8, 77],
+        [22, 69], [25, 67], [25, 57], [30, 48], [36, 36], [37, 27]
+      ], '#2d2417', '#f59e0b');
+
+      // 5. Sri Lanka, Sumatra, Java & Borneo Islands
+      drawContinentPolygon([[9, 79.5], [6, 81.5], [7, 82], [9.5, 80.5]], '#3b2e1d', '#fbbf24');
+      drawContinentPolygon([[5.5, 95], [-5.5, 105], [-6, 103], [4, 94]], '#3b2e1d', '#fbbf24');
+      drawContinentPolygon([[-6, 106], [-8, 114], [-9, 112], [-7, 105]], '#3b2e1d', '#fbbf24');
+
+      return new THREE.CanvasTexture(c);
+    }
+
+    const earthMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64),
+      new THREE.MeshStandardMaterial({
+        map: createWorldMapTexture(),
+        roughness: 0.65,
+        metalness: 0.18
+      })
+    );
+    globeGroup.add(earthMesh);
+
+    // Subtle Golden Atmosphere Rim Halo
+    const atmoHalo = new THREE.Mesh(
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.025, 48, 48),
+      new THREE.MeshBasicMaterial({
+        color: 0x0ea5e9,
+        transparent: true,
+        opacity: 0.11,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    globeGroup.add(atmoHalo);
+
+    // Helper: Convert (lat, lon, radius) to 3D Cartesian Vector3 on Three.js Sphere
+    function latLonToVector3(lat, lon, radius = GLOBE_RADIUS) {
+      const phi = THREE.MathUtils.degToRad(90 - lat);
+      const theta = THREE.MathUtils.degToRad(lon + 180);
+      const x = -radius * Math.sin(phi) * Math.cos(theta);
+      const y = radius * Math.cos(phi);
+      const z = radius * Math.sin(phi) * Math.sin(theta);
+      return new THREE.Vector3(x, y, z);
+    }
+
+    // Create Elevated 3D Great-Circle Curve between two Lat/Lon points
+    function createElevatedArc(lat1, lon1, lat2, lon2, isSea = false) {
+      const vStart = latLonToVector3(lat1, lon1, GLOBE_RADIUS + 0.15);
+      const vEnd = latLonToVector3(lat2, lon2, GLOBE_RADIUS + 0.15);
+      const dist = vStart.distanceTo(vEnd);
+      const midElevation = GLOBE_RADIUS + 0.6 + dist * 0.22;
+
+      const pts = [];
+      const segments = 48;
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const p = new THREE.Vector3().lerpVectors(vStart, vEnd, t);
+        const altitude = GLOBE_RADIUS + 0.15 + Math.sin(t * Math.PI) * (midElevation - GLOBE_RADIUS);
+        p.normalize().multiplyScalar(altitude);
+        pts.push(p);
+      }
+
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const tubeGeo = new THREE.TubeGeometry(curve, 44, 0.15, 8, false);
+      const tubeMat = new THREE.MeshStandardMaterial({
+        color: isSea ? 0x06b6d4 : 0xf59e0b,
+        emissive: isSea ? 0x0891b2 : 0xd97706,
+        emissiveIntensity: 0.85,
+        roughness: 0.2
+      });
+      const mesh = new THREE.Mesh(tubeGeo, tubeMat);
+      return { mesh, curve };
+    }
+
+    // Build all Journey Route Arcs & 3D City Beacons
+    const routeArcMeshes = [];
+    const cityBeaconMeshes = [];
+    const travelerOrb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.52, 20, 20),
+      new THREE.MeshBasicMaterial({ color: 0xfef08a })
+    );
+    globeGroup.add(travelerOrb);
+
+    for (let i = 0; i < CITIES.length; i++) {
+      const city = CITIES[i];
+      const pos3D = latLonToVector3(city.lat, city.lon, GLOBE_RADIUS + 0.2);
+
+      // 3D City Beacon Node
+      const beacon = new THREE.Mesh(
+        new THREE.SphereGeometry(0.42, 16, 16),
+        new THREE.MeshStandardMaterial({
+          color: city.routeType === 'sea' ? 0x22d3ee : 0xfacc15,
+          emissive: city.routeType === 'sea' ? 0x0891b2 : 0xb45309,
+          emissiveIntensity: 0.8
+        })
+      );
+      beacon.position.copy(pos3D);
+      globeGroup.add(beacon);
+      cityBeaconMeshes.push({ mesh: beacon, city, pos3D });
+
+      // Connect previous city to current city with a glowing 3D arc
+      if (i > 0) {
+        const prev = CITIES[i - 1];
+        const arcObj = createElevatedArc(prev.lat, prev.lon, city.lat, city.lon, city.routeType === 'sea');
+        globeGroup.add(arcObj.mesh);
+        routeArcMeshes.push({
+          mesh: arcObj.mesh,
+          curve: arcObj.curve,
+          year: city.year,
+          cityIdx: i
+        });
+      }
+    }
+
+    // Add the two Western Finale Arcs (Tangier -> Granada & Tangier -> Timbuktu)
+    FINALE_WEST_ARCS.forEach(fa => {
+      const arcObj = createElevatedArc(fa.fromLat, fa.fromLon, fa.toLat, fa.toLon, fa.type === 'sea');
+      globeGroup.add(arcObj.mesh);
+      routeArcMeshes.push({ mesh: arcObj.mesh, curve: arcObj.curve, year: fa.year, cityIdx: 11 });
+    });
+
+    // =========================================================================
+    // 3. 2D PROJECTED HTML PINS & TOP NAVIGATION BAR
+    // =========================================================================
+    const pinsLayer = document.getElementById('pins-layer');
+    const pinItems = [];
+
+    function buildUIAndPins() {
+      const topBar = document.getElementById('top-city-bar');
+      topBar.innerHTML = '';
+      pinsLayer.innerHTML = '';
+      pinItems.length = 0;
+
+      CITIES.forEach((city, idx) => {
+        // 1. Top Quick-Jump Button
+        const btn = document.createElement('button');
+        btn.id = `tab-city-${idx}`;
+        btn.onclick = () => selectCity(idx, true);
+        btn.className = `city-btn ${idx === 0 ? 'active' : 'text-slate-300'} px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold cursor-pointer whitespace-nowrap`;
+        btn.textContent = city.short;
+        topBar.appendChild(btn);
+
+        // 2. Projected 3D-to-2D HTML Pin on Globe
+        const pin = document.createElement('div');
+        pin.className = 'globe-pin';
+        pin.onclick = (e) => {
+          e.stopPropagation();
+          selectCity(idx, true);
+        };
+        const borderCol = city.routeType === 'sea' ? 'border-cyan-400/70' : 'border-amber-400/70';
+        const dotBg = city.routeType === 'sea' ? 'bg-cyan-400' : 'bg-amber-400';
+
+        pin.innerHTML = `
+          <div class="flex flex-col items-center">
+            <div class="px-2 py-0.5 rounded-lg bg-slate-950/90 border ${borderCol} shadow-lg text-center">
+              <div class="font-display font-bold text-[10px] text-white whitespace-nowrap">${city.short}</div>
+              <div class="text-[8px] font-mono text-amber-300">${city.year} CE</div>
+            </div>
+            <div class="w-[1.5px] h-2 ${dotBg}"></div>
+            <div class="w-5 h-5 rounded-full ${dotBg} text-slate-950 font-mono font-black text-[10px] flex items-center justify-center border border-white shadow">
+              ${idx + 1}
+            </div>
+          </div>
+        `;
+        pinsLayer.appendChild(pin);
+        pinItems.push({
+          el: pin,
+          idx,
+          localPos: latLonToVector3(city.lat, city.lon, GLOBE_RADIUS + 0.8)
+        });
+      });
+    }
+
+    function updateProjectedPins() {
+      const halfW = window.innerWidth / 2;
+      const halfH = window.innerHeight / 2;
+      const camDir = camera.position.clone().normalize();
+
+      pinItems.forEach(item => {
+        if (!showPins) {
+          item.el.style.display = 'none';
+          return;
+        }
+        const worldPos = item.localPos.clone().applyMatrix4(globeGroup.matrixWorld);
+        const surfNormal = worldPos.clone().normalize();
+
+        // Hide pins on the back hemisphere of the globe
+        if (surfNormal.dot(camDir) < 0.18) {
+          item.el.style.display = 'none';
+          return;
+        }
+
+        const projected = worldPos.project(camera);
+        if (projected.z > 1) {
+          item.el.style.display = 'none';
+          return;
+        }
+
+        item.el.style.display = 'block';
+        item.el.style.left = `${projected.x * halfW + halfW}px`;
+        item.el.style.top = `${-projected.y * halfH + halfH}px`;
+        item.el.classList.toggle('active-pin', item.idx === activeCityIdx);
+      });
+    }
+
+    // =========================================================================
+    // 4. CITY SELECTION, CAMERA FLY-TO & CHRONOLOGICAL TIMELINE FILTER
+    // =========================================================================
+    function selectCity(idx, fly = true) {
+      activeCityIdx = (idx + CITIES.length) % CITIES.length;
+      const city = CITIES[activeCityIdx];
+      const isUr = currentLang === 'ur';
+
+      CITIES.forEach((_, i) => {
+        const b = document.getElementById(`tab-city-${i}`);
+        if (b) b.classList.toggle('active', i === activeCityIdx);
+      });
+
+      document.getElementById('city-badge').textContent = `STATION ${String(activeCityIdx + 1).padStart(2, '0')} / 12 // ${city.name.toUpperCase()}`;
+      document.getElementById('city-year').textContent = `${city.year} CE`;
+      document.getElementById('tel-km').textContent = `${city.km.toLocaleString()} km`;
+      document.getElementById('tel-mode').textContent = city.mode;
+      document.getElementById('tel-coords').textContent = `${city.lat.toFixed(1)}°N, ${city.lon.toFixed(1)}°E`;
+
+      document.getElementById('chr-title').textContent = isUr ? city.titleUr : city.titleEn;
+      document.getElementById('chr-arabic').textContent = city.arabic;
+      document.getElementById('chr-region').textContent = isUr ? city.regionUr : city.regionEn;
+      document.getElementById('chr-desc').textContent = isUr ? city.descUr : city.descEn;
+
+      const bullets = isUr ? city.bulletsUr : city.bulletsEn;
+      document.getElementById('chr-bullets').innerHTML = bullets.map(b => `
+        <li class="p-2.5 rounded-xl bg-slate-950/80 border border-white/10 leading-relaxed">${b}</li>
+      `).join('');
+      document.getElementById('chr-quote').textContent = isUr ? city.quoteUr : city.quoteEn;
+
+      // Move traveler marker to selected city
+      const targetPos = latLonToVector3(city.lat, city.lon, GLOBE_RADIUS + 0.55);
+      gsap.to(travelerOrb.position, { x: targetPos.x, y: targetPos.y, z: targetPos.z, duration: 0.9, ease: 'power2.out' });
+
+      if (fly) {
+        autoSpinGlobe = false;
+        document.getElementById('btn-spin').textContent = '🔄 Spin: OFF';
+        gsap.to(globeGroup.rotation, { y: 0, duration: 0.8 });
+
+        // Compute spherical orbit angles matching latLonToVector3
+        const targetPhi = THREE.MathUtils.degToRad(90 - city.lat);
+        const targetTheta = THREE.MathUtils.degToRad(city.lon + 180);
+
+        gsap.to(orbit, {
+          phi: THREE.MathUtils.clamp(targetPhi, 0.25, Math.PI - 0.25),
+          theta: targetTheta,
+          radius: 56,
+          duration: 1.35,
+          ease: 'power3.out'
+        });
+      }
+    }
+
+    function stepCity(dir) {
+      selectCity(activeCityIdx + dir, true);
+    }
+
+    function scrubToYear(yearVal) {
+      const yr = parseInt(yearVal, 10);
+      document.getElementById('year-slider').value = yr;
+
+      // Show/Hide route arcs up to selected year
+      routeArcMeshes.forEach(arc => {
+        arc.mesh.visible = (arc.year <= yr);
+      });
+
+      // Find latest city reached by this year
+      let reachedIdx = 0;
+      CITIES.forEach((c, idx) => {
+        if (c.year <= yr) reachedIdx = idx;
+      });
+
+      const kmReached = CITIES[reachedIdx].km;
+      document.getElementById('scrubber-year-badge').textContent = `${yr} CE • ${kmReached.toLocaleString()} KM`;
+      document.getElementById('ibn-live-km').textContent = `${kmReached.toLocaleString()} km`;
+      document.getElementById('ibn-bar').style.width = `${Math.max(6, Math.round((kmReached / 117000) * 100))}%`;
+
+      if (reachedIdx !== activeCityIdx) {
+        selectCity(reachedIdx, true);
+      }
+    }
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'ur' ? 'en' : 'ur';
+      selectCity(activeCityIdx, false);
+    }
+
+    function togglePins() {
+      showPins = !showPins;
+    }
+
+    function toggleGlobeAutoSpin() {
+      autoSpinGlobe = !autoSpinGlobe;
+      document.getElementById('btn-spin').textContent = `🔄 Spin: ${autoSpinGlobe ? 'ON' : 'OFF'}`;
+    }
+
+    function toggleAutoVoyage() {
+      const btn = document.getElementById('btn-tour');
+      if (autoVoyageTimer) {
+        clearInterval(autoVoyageTimer);
+        autoVoyageTimer = null;
+        btn.textContent = '▶ Auto-Safar';
+        btn.classList.remove('active');
+      } else {
+        btn.textContent = '❚❚ Pause Safar';
+        btn.classList.add('active');
+        selectCity(activeCityIdx, true);
+        autoVoyageTimer = setInterval(() => {
+          stepCity(1);
+        }, 4600);
+      }
+    }
+
+    // Web Audio API Ambient Oud & Ocean Breeze
+    let audioCtx = null;
+    let audioActive = false;
+    let audioLoop = null;
+    const MAQAM_HIJAZ = [146.83, 155.56, 185.00, 196.00, 220.00, 233.08, 277.18, 293.66];
+
+    function toggleRihlaAudio() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      audioActive = !audioActive;
+      const btn = document.getElementById('btn-audio');
+      if (audioActive) {
+        btn.textContent = '🔊 Audio ON';
+        btn.classList.add('active');
+        playRihlaPluck();
+        audioLoop = setInterval(playRihlaPluck, 1450);
+      } else {
+        btn.textContent = '🔇 Audio';
+        btn.classList.remove('active');
+        clearInterval(audioLoop);
+      }
+    }
+
+    function playRihlaPluck() {
+      if (!audioCtx || !audioActive) return;
+      const now = audioCtx.currentTime;
+      const freq = MAQAM_HIJAZ[Math.floor(Math.random() * MAQAM_HIJAZ.length)];
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.11, now + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0008, now + 1.3);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 1.35);
+    }
+
+    // =========================================================================
+    // 5. POINTER ORBIT CONTROLS & 60FPS ANIMATION LOOP
+    // =========================================================================
+    canvas.addEventListener('pointerdown', e => {
+      orbit.isDragging = true;
+      orbit.prevX = e.clientX;
+      orbit.prevY = e.clientY;
+    });
+
+    window.addEventListener('pointermove', e => {
+      if (!orbit.isDragging) return;
+      const dx = e.clientX - orbit.prevX;
+      const dy = e.clientY - orbit.prevY;
+      orbit.prevX = e.clientX;
+      orbit.prevY = e.clientY;
+
+      orbit.theta += dx * 0.0065;
+      orbit.phi = THREE.MathUtils.clamp(orbit.phi - dy * 0.0065, 0.18, Math.PI - 0.18);
+    });
+
+    window.addEventListener('pointerup', () => { orbit.isDragging = false; });
+
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      orbit.radius = THREE.MathUtils.clamp(orbit.radius + e.deltaY * 0.045, 34, 125);
+    }, { passive: false });
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const elapsed = clock.getElapsedTime();
+
+      if (autoSpinGlobe && !orbit.isDragging) {
+        orbit.theta -= 0.0025;
+      }
+
+      // Pulse active traveler orb
+      const pulse = 1 + Math.sin(elapsed * 4.2) * 0.22;
+      travelerOrb.scale.setScalar(pulse);
+      starsMesh.rotation.y = elapsed * 0.005;
+
+      // Update Camera Position on Spherical Coordinates matching latLonToVector3
+      camera.position.x = -orbit.radius * Math.sin(orbit.phi) * Math.cos(orbit.theta);
+      camera.position.y = orbit.radius * Math.cos(orbit.phi);
+      camera.position.z = orbit.radius * Math.sin(orbit.phi) * Math.sin(orbit.theta);
+      camera.lookAt(0, 0, 0);
+
+      renderer.render(scene, camera);
+      updateProjectedPins();
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.onload = function () {
+      buildUIAndPins();
+      selectCity(7, true); // Start focused on Indus Valley (Sindh/Multan) & South/Central Asia view!
+      animate();
+    };
+  </script>
+</body>
+</html>
