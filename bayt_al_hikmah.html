@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>BAYT AL-HIKMAH // 3D House of Wisdom & Round City of Baghdad (830 CE)</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js r128 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- GSAP 3.12 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Space Grotesk', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+            serif: ['Amiri', 'serif']
+          },
+          colors: {
+            abbasiGold: '#F59E0B',
+            turquoiseDome: '#0EA5E9',
+            lapisBlue: '#1E3A8A',
+            sandstone: '#D97706',
+            emeraldTile: '#10B981'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #050914;
+      color: #F8FAFC;
+      font-family: 'Inter', sans-serif;
+    }
+
+    #baghdad-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      display: block;
+      cursor: grab;
+    }
+    #baghdad-canvas:active {
+      cursor: grabbing;
+    }
+
+    .hikmah-glass {
+      background: rgba(9, 15, 30, 0.84);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      box-shadow: 0 20px 55px rgba(0, 0, 0, 0.82), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+
+    .wing-btn {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .wing-btn:hover {
+      border-color: #F59E0B;
+      color: #FDE68A;
+      transform: translateY(-1px);
+    }
+    .wing-btn.active {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.28), rgba(14, 165, 233, 0.22));
+      border-color: #F59E0B;
+      color: #FFFFFF;
+      box-shadow: 0 0 22px rgba(245, 158, 11, 0.35);
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(15, 23, 42, 0.95);
+      height: 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #F59E0B;
+      cursor: pointer;
+      border: 2px solid #050914;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.9);
+    }
+
+    /* 2D Projected HTML Pins Layer */
+    #pins-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      overflow: hidden;
+    }
+
+    .wing-pin {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: auto;
+      cursor: pointer;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: left, top;
+    }
+    .wing-pin:hover, .wing-pin.active-pin {
+      transform: translate(-50%, -108%) scale(1.08);
+      z-index: 45 !important;
+    }
+
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.35);
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(245, 158, 11, 0.45);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+
+<body class="relative w-screen h-screen overflow-hidden select-none">
+
+  <!-- 3D WebGL Baghdad & Scholar Labs Canvas -->
+  <canvas id="baghdad-canvas"></canvas>
+
+  <!-- 2D Projected HTML Callout Pins -->
+  <div id="pins-layer"></div>
+
+  <!-- ===================================================================== -->
+  <!-- TOP NAVIGATION & SKY / AUDIO / LANGUAGE BAR                           -->
+  <!-- ===================================================================== -->
+  <header class="fixed top-3 left-3 right-3 z-30 pointer-events-none flex flex-wrap items-center justify-between gap-2">
+    <!-- Brand Identity -->
+    <div class="hikmah-glass rounded-2xl px-4 py-2.5 pointer-events-auto flex items-center gap-3">
+      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 via-yellow-600 to-sky-600 flex items-center justify-center shadow-lg shadow-amber-500/25 font-serif font-bold text-slate-950 text-lg">
+        بيت
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-display font-extrabold text-xs sm:text-sm tracking-wider uppercase text-white">
+            BAYT AL-HIKMAH // HOUSE OF WISDOM
+          </h1>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 font-semibold hidden sm:inline">
+            MADINAT AL-SALAM • 830 CE
+          </span>
+        </div>
+        <p id="sub-header-text" class="text-[10px] font-mono text-sky-200/80 mt-0.5">
+          Round City of Baghdad • 4 Interactive Golden Age Scientific Laboratories
+        </p>
+      </div>
+    </div>
+
+    <!-- Center: 5 Interactive Camera / Wing Selectors -->
+    <div class="hikmah-glass rounded-2xl p-1.5 pointer-events-auto flex items-center gap-1 overflow-x-auto max-w-full custom-scroll">
+      <button onclick="selectWing(0)" id="tab-wing-0" class="wing-btn active px-3 py-1.5 rounded-xl text-xs font-mono font-bold cursor-pointer whitespace-nowrap">
+        🏛️ 0. Round City &amp; Dome
+      </button>
+      <button onclick="selectWing(1)" id="tab-wing-1" class="wing-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-slate-300 cursor-pointer whitespace-nowrap">
+        📐 1. Al-Khwarizmi Algebra
+      </button>
+      <button onclick="selectWing(2)" id="tab-wing-2" class="wing-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-slate-300 cursor-pointer whitespace-nowrap">
+        🕯️ 2. Ibn al-Haytham Optics
+      </button>
+      <button onclick="selectWing(3)" id="tab-wing-3" class="wing-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-slate-300 cursor-pointer whitespace-nowrap">
+        ⚙️ 3. Al-Jazari Clock
+      </button>
+      <button onclick="selectWing(4)" id="tab-wing-4" class="wing-btn px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-slate-300 cursor-pointer whitespace-nowrap">
+        🧭 4. Astrolabe &amp; Qibla
+      </button>
+    </div>
+
+    <!-- Right: Day/Starry Night Slider, Roman Urdu/EN Toggle & Oud Audio -->
+    <div class="hikmah-glass rounded-2xl px-3 py-1.5 pointer-events-auto flex items-center gap-2 ml-auto">
+      <div class="flex items-center gap-1.5 text-[10px] font-mono">
+        <span id="sky-icon">🌙</span>
+        <input id="sky-slider" type="range" min="0" max="100" value="82" oninput="setSkyTime(this.value)" class="w-16 sm:w-20" title="Day to Starry Baghdad Night Transition" />
+      </div>
+
+      <button id="btn-lang" onclick="toggleLanguage()" class="wing-btn px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold text-amber-300 cursor-pointer">
+        🌐 Roman Urdu / EN
+      </button>
+
+      <button id="btn-audio" onclick="toggleOudAudio()" class="wing-btn px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold text-sky-300 cursor-pointer" title="Toggle Web Audio Oud Plucks & Desert Breeze">
+        🔇 Oud Audio
+      </button>
+
+      <button id="btn-pins" onclick="togglePins()" class="wing-btn px-2 py-1.5 rounded-xl text-xs font-mono text-slate-300 cursor-pointer hidden sm:inline">
+        🏷️ Pins
+      </button>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- LEFT PANEL: INTERACTIVE SCHOLAR LABORATORY EXPERIMENT CONTROLS        -->
+  <!-- ===================================================================== -->
+  <aside class="fixed top-20 left-3 z-20 w-[calc(100vw-24px)] sm:w-88 max-w-sm pointer-events-none flex flex-col gap-2.5">
+    <div class="hikmah-glass rounded-3xl p-4 pointer-events-auto space-y-3.5">
+      <div class="flex items-center justify-between border-b border-white/10 pb-2">
+        <span id="lab-badge" class="text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40 font-bold">
+          WING 00 // ARCHITECTURE &amp; CITY
+        </span>
+        <span id="lab-year" class="text-xs font-mono text-sky-300 font-bold">762 – 830 CE</span>
+      </div>
+
+      <div>
+        <h2 id="lab-title" class="font-display font-bold text-lg text-white leading-snug">
+          Madinat al-Salam (The Round City of Baghdad)
+        </h2>
+        <p id="lab-subtitle" class="text-xs font-mono text-amber-300 mt-0.5">
+          Caliph Al-Mansur &amp; Al-Ma'mun's Grand Academy
+        </p>
+      </div>
+
+      <!-- Dynamic Interactive Controls per Wing -->
+      <div id="wing-interactive-controls" class="bg-slate-950/85 border border-white/10 rounded-2xl p-3.5 space-y-3 font-mono text-xs">
+        <!-- Populated dynamically by selectWing() -->
+      </div>
+
+      <!-- Live Telemetry Readouts for the Active Wing -->
+      <div class="grid grid-cols-2 gap-2 font-mono text-xs">
+        <div class="bg-slate-900/80 border border-white/10 rounded-xl p-2">
+          <span id="metric-1-label" class="text-[9px] text-slate-400 block uppercase">CITY DIAMETER</span>
+          <span id="metric-1-val" class="font-bold text-amber-300">2,000 Meters (4 Gates)</span>
+        </div>
+        <div class="bg-slate-900/80 border border-white/10 rounded-xl p-2">
+          <span id="metric-2-label" class="text-[9px] text-slate-400 block uppercase">MANUSCRIPTS</span>
+          <span id="metric-2-val" class="font-bold text-sky-300">400,000+ Scrolls</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- RIGHT PANEL: BILINGUAL KNOWLEDGE CODEX (ROMAN URDU & ENGLISH)         -->
+  <!-- ===================================================================== -->
+  <aside class="fixed top-20 right-3 z-20 w-[calc(100vw-24px)] sm:w-96 max-w-md pointer-events-none hidden lg:flex flex-col gap-2.5">
+    <div class="hikmah-glass rounded-3xl p-4 sm:p-5 pointer-events-auto space-y-3.5 max-h-[calc(100vh-170px)] overflow-y-auto custom-scroll">
+      <div class="flex items-center justify-between border-b border-white/10 pb-2">
+        <span class="text-[10px] font-mono uppercase tracking-widest text-sky-400 font-bold">
+          📜 BILINGUAL KNOWLEDGE CODEX
+        </span>
+        <div class="flex items-center gap-1">
+          <button onclick="stepWing(-1)" class="w-6 h-6 rounded-lg bg-white/10 hover:bg-amber-500/30 text-xs font-mono flex items-center justify-center cursor-pointer">◀</button>
+          <button onclick="stepWing(1)" class="w-6 h-6 rounded-lg bg-white/10 hover:bg-amber-500/30 text-xs font-mono flex items-center justify-center cursor-pointer">▶</button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <h3 id="codex-scholar" class="font-display font-extrabold text-base text-white">
+          Bayt al-Hikmah (بيت الحكمة)
+        </h3>
+        <span id="codex-treatise" class="text-[11px] font-serif text-amber-300">
+          مدينة السلام
+        </span>
+      </div>
+
+      <p id="codex-desc" class="text-xs sm:text-[13px] text-slate-200 leading-relaxed"></p>
+
+      <ul id="codex-bullets" class="space-y-2 text-xs text-slate-200"></ul>
+
+      <!-- Historical Impact Box -->
+      <div class="bg-gradient-to-br from-amber-500/15 via-slate-900/90 to-sky-500/15 border border-amber-400/40 rounded-2xl p-3.5 space-y-1">
+        <span class="text-[10px] font-mono uppercase tracking-wider text-amber-300 font-bold block">
+          🌟 GOLDEN AGE SCIENTIFIC LEGACY
+        </span>
+        <p id="codex-legacy" class="text-xs text-slate-300 leading-relaxed"></p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- BOTTOM HISTORICAL TIMELINE SCRUBBER (750 CE – 1258 CE)                -->
+  <!-- ===================================================================== -->
+  <footer class="fixed bottom-3 left-3 right-3 z-30 pointer-events-none">
+    <div class="hikmah-glass rounded-2xl px-4 py-2.5 pointer-events-auto max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-3 w-full sm:w-auto">
+        <span class="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/40 font-mono font-extrabold text-xs text-amber-300 whitespace-nowrap" id="timeline-year-badge">
+          830 CE
+        </span>
+        <div class="min-w-0">
+          <div id="timeline-event-title" class="font-display font-bold text-xs sm:text-sm text-white truncate">
+            Peak of Bayt al-Hikmah &amp; Al-Khwarizmi's Algebra Treatise
+          </div>
+          <div id="timeline-event-desc" class="text-[11px] text-slate-400 truncate">
+            Caliph Al-Ma'mun expands the House of Wisdom into the world's premier center of astronomy, mathematics, and translation.
+          </div>
+        </div>
+      </div>
+
+      <!-- Scrubber Slider (750 CE to 1258 CE) -->
+      <div class="flex items-center gap-2.5 w-full sm:w-72 shrink-0 font-mono text-[10px]">
+        <span class="text-slate-400">750 CE</span>
+        <input id="timeline-slider" type="range" min="750" max="1258" value="830" oninput="scrubTimeline(this.value)" class="flex-1" />
+        <span class="text-slate-400">1258 CE</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===================================================================== -->
+  <!-- JAVASCRIPT: 3D ROUND CITY, 4 WORKING SCHOLAR LABS & BILINGUAL CODEX   -->
+  <!-- ===================================================================== -->
+  <script>
+    // =========================================================================
+    // 1. BILINGUAL HISTORICAL & SCIENTIFIC DATASET (ROMAN URDU & ENGLISH)
+    // =========================================================================
+    let currentLang = 'ur'; // 'ur' = Roman Urdu, 'en' = English
+    let activeWingIdx = 0;
+    let showPins = true;
+
+    // Interactive state for each lab
+    let algebraStepProgress = 1.0;   // 0 = x^2 only, 0.5 = +10x wings, 1.0 = +25 complete square = 64
+    let candleHeightY = 1.6;         // Exterior candle height in Ibn al-Haytham's Camera Obscura
+    let clockFlowSpeed = 1.2;        // Al-Jazari Water Clock speed
+    let astrolabeAngleDeg = 42;      // Star altitude angle on Rooftop Astrolabe
+
+    const WINGS = [
+      {
+        id: 0,
+        badge: 'WING 00 // ROUND CITY & GRAND DOME',
+        years: '762 – 830 CE',
+        titleUr: 'Madinat al-Salam (Baghdad Ka Gol Shehar) & Bayt al-Hikmah',
+        titleEn: 'Madinat al-Salam (Round City of Baghdad) & Grand Library',
+        subUr: 'Khalifa Al-Mansur Aur Al-Ma\'mun Ki Azeem Ilmi Darsgah',
+        subEn: 'Concentric Walled Capital & Center of the Islamic Golden Age',
+        scholar: 'Bayt al-Hikmah (بيت الحكمة)',
+        arabic: 'مدينة السلام — بغداد',
+        m1Label: 'CITY DIAMETER',
+        m1Val: '2,000m (4 Gates)',
+        m2Label: 'ARCHIVE SCROLLS',
+        m2Val: '400,000+ Volumes',
+        pos: { x: 0, y: 8, z: 0 },
+        cam: { radius: 85, theta: 0.45, phi: 1.05 },
+        descUr: '762 CE mein Khalifa Al-Mansur ne Darya-e-Dajlah (Tigris) ke kinare Baghdad ko aik mukammal Gol Shehar (Round City) ke taur par tameer kiya jis ke 4 azeem darwaze (Kufa, Basra, Khurasan, Syria) thay. Is ke bilkul markaz mein Bayt al-Hikmah (House of Wisdom) qaim hua.',
+        descEn: 'Founded in 762 CE by Caliph Al-Mansur along the Tigris River, the Round City of Baghdad featured concentric defensive walls and four equidistant gates, with the Grand Palace and Bayt al-Hikmah at its geometric heart.',
+        bulletsUr: [
+          '🏛️ <strong>4 Azeem Darwaze (Four Gates):</strong> Bab al-Kufa, Bab al-Basra, Bab al-Khurasan, aur Bab al-Sham jo charon simton ke tijarati aur ilmi raston ko milate thay.',
+          '📚 <strong>Translation & Research Movement:</strong> Yahan Greek, Sanskrit, Persian aur Syriac zabanon ke uloom ko Arabi mein translate kar ke naye scientific ijadat ki bunyad rakhi gayi.',
+          '🏮 <strong>Lantern-Lit Courtyards:</strong> Raat ke waqt Baghdad ki galiyan aur Bayt al-Hikmah ke gumbad mashalon aur fanoos (lanterns) se jagmaga uthte thay.'
+        ],
+        bulletsEn: [
+          '🏛️ <strong>Four Cardinal Gates:</strong> Kufa, Basra, Khurasan, and Damascus gates aligned with trade routes across Afro-Eurasia.',
+          '📚 <strong>Global Translation & Original Research:</strong> Scholars synthesized Greek, Sanskrit, and Persian manuscripts into original breakthroughs in algebra, optics, medicine, and astronomy.',
+          '🏮 <strong>Architectural Geometry:</strong> Featured turquoise-tiled domes, arched porticoes, and illuminated nocturnal study courtyards.'
+        ],
+        legacyUr: 'Click any of the 4 Scholar Wings in the top bar (or 3D pins) to fly inside Al-Khwarizmi, Ibn al-Haytham, Al-Jazari, and Al-Battani’s working 3D laboratories!',
+        legacyEn: 'Select any of the 4 Scholar Wings in the top bar (or click the 3D pins) to fly directly into the working 3D laboratories inside the city.'
+      },
+      {
+        id: 1,
+        badge: 'WING 01 // AL-KHWARIZMI ALGEBRA LAB',
+        years: '820 CE',
+        titleUr: 'Al-Khwarizmi Ki Geometric Algebra Lab (x² + 10x = 39)',
+        titleEn: 'Al-Khwarizmi’s Geometric Algebra Solver (x² + 10x = 39)',
+        subUr: 'Kitab al-Jabr wa-l-Muqabala // Completing the Square',
+        subEn: 'Visual 3D Proof of "Completing the Square" (x = 3)',
+        scholar: 'Muhammad ibn Musa al-Khwarizmi',
+        arabic: 'الكتاب المختصر في حساب الجبر والمقابلة',
+        m1Label: 'EQUATION',
+        m1Val: 'x² + 10x = 39',
+        m2Label: 'GEOMETRIC ROOT',
+        m2Val: 'x = 3 (Area = 64)',
+        pos: { x: -24, y: 3.5, z: -20 },
+        cam: { radius: 22, theta: 0.35, phi: 1.0 },
+        descUr: 'Al-Khwarizmi ne apni mashhoor kitab "Al-Jabr" mein quadratic equations ko hal karne ke liye 3D/2D Geometric Squares ka tariqa ijad kiya. Un ki sab se mashhoor misaal x² + 10x = 39 hai:',
+        descEn: 'In his landmark treatise on Algebra (Al-Jabr), Al-Khwarizmi solved quadratic equations geometrically by physically "completing the square" for x² + 10x = 39:',
+        bulletsUr: [
+          '🟦 <strong>Step 1 — Markazi Murabba (x²):</strong> Beech mein नीला (blue) block x × x = x² (Area = 9 jab x=3) ko zahir karta hai.',
+          '🟨 <strong>Step 2 — Chaar Mustateel (4 × 2.5x = 10x):</strong> 10x ko 4 barabar hisson (2.5 × x) mein taqseem kar ke x² ke charon taraf lagaya gaya (Area = 4 × 7.5 = 30).',
+          '🟩 <strong>Step 3 — Completing the Square (+25):</strong> Charon konon (corners) ko bharne ke liye 2.5 × 2.5 = 6.25 ke 4 chote emerald blocks (Total = 25) add kiye gaye. Is tarah 39 + 25 = 64 ka mukammal square ban gaya jis ki side 8 hai, lihaza x + 5 = 8 ⇒ x = 3!'
+        ],
+        bulletsEn: [
+          '🟦 <strong>Step 1 — Central Square (x²):</strong> The blue center block represents the unknown square x² (Area = 9 when x = 3).',
+          '🟨 <strong>Step 2 — Four Symmetric Wings (10x):</strong> He divided 10x into four rectangles of width 2.5 attached to each side of x² (Total Area = 9 + 30 = 39).',
+          '🟩 <strong>Step 3 — Four Corner Squares (+25):</strong> Adding four 2.5×2.5 emerald corner blocks (area 4 × 6.25 = 25) completes a grand square of area 39 + 25 = 64 (side = 8). Thus, x + 2.5 + 2.5 = 8 ⇒ x = 3!'
+        ],
+        legacyUr: 'Lafz "Algebra" (Al-Jabr) aur "Algorithm" (Al-Khwarizmi ke naam se) aaj ki har computer programming aur AI ki bunyad hain.',
+        legacyEn: 'Both the terms "Algebra" (from Al-Jabr) and "Algorithm" (from Al-Khwarizmi’s name) originate from his work in Bayt al-Hikmah.'
+      },
+      {
+        id: 2,
+        badge: 'WING 02 // IBN AL-HAYTHAM OPTICS CHAMBER',
+        years: '1011 – 1021 CE',
+        titleUr: 'Ibn al-Haytham Ka Camera Obscura (Kitab al-Manazir)',
+        titleEn: 'Ibn al-Haytham’s 3D Camera Obscura (Book of Optics)',
+        subUr: 'Roshni Ki Seedhi Shuayein Aur Ulti Tasweer (Inverted Image)',
+        subEn: 'Rectilinear Propagation of Light & Pinhole Projection',
+        scholar: 'Al-Hasan Ibn al-Haytham (Alhazen)',
+        arabic: 'كتاب المناظر — القمرة',
+        m1Label: 'OPTICAL PRINCIPLE',
+        m1Val: 'Linear Light Rays',
+        m2Label: 'PROJECTION',
+        m2Val: 'Inverted Image',
+        pos: { x: 24, y: 3.5, z: -20 },
+        cam: { radius: 24, theta: -0.45, phi: 1.12 },
+        descUr: 'Ibn al-Haytham (Father of Modern Optics) ne purani Greek theory ko ghalat sabit kiya ke roshni aankh se nikalti hai. Unhon ne "Al-Qamara" (Camera Obscura / tareek kamra) ke tajurbe se sabit kiya ke roshni bahar ke jism se seedhi lakiron (straight lines) mein safar karti hai:',
+        descEn: 'Ibn al-Haytham revolutionized physics by proving experimentally that light travels in straight lines from external objects into the eye, using the Darkened Pinhole Chamber (Al-Qamara / Camera Obscura):',
+        bulletsUr: [
+          '🕯️ <strong>Bahar Jalti Shama (Exterior Candle):</strong> Left panel ke slider se bahar rakhi shama (candle) ko upar-niche move karein.',
+          '🕳️ <strong>Pinhole Aperture Crossing:</strong> Shama ke upari sholay (flame) aur nichle hissay se nikalne wali roshni ki shuayein (light rays) deewar ke chote surakh (pinhole) par aik doosre ko cross karti hain.',
+          '🙃 <strong>Deewar Par Ulti Tasweer (Inverted Projection):</strong> Kyunki roshni seedhi line mein chalti hai, is liye andar ki parde wali deewar par shama ki tasweer bilkul ulti (upside-down) banti hai!'
+        ],
+        bulletsEn: [
+          '🕯️ <strong>Interactive Candle Source:</strong> Use the slider on the left panel to raise or lower the exterior candle.',
+          '🕳️ <strong>Aperture Ray Intersection:</strong> Light rays from the top of the flame and base of the candle travel in straight lines and cross at the tiny pinhole aperture.',
+          '🙃 <strong>Real-Time Inverted Projection:</strong> Because rays cross at the pinhole, moving the exterior candle UP causes the projected flame inside the chamber to move DOWN.'
+        ],
+        legacyUr: 'Lafz "Camera" khud Arabi lafz "Qamara" (tareek kamra) se nikla hai, aur Ibn al-Haytham ka Experimental Scientific Method jadid science ki bunyad bana.',
+        legacyEn: 'The English word "Camera" derives directly from his Arabic term "Qamara" (darkened chamber).'
+      },
+      {
+        id: 3,
+        badge: 'WING 03 // AL-JAZARI MECHANICAL HALL',
+        years: '1206 CE',
+        titleUr: 'Al-Jazari Ka Water Clock & Gear Automaton',
+        titleEn: 'Al-Jazari’s Hydro-Mechanical Water Clock & Gears',
+        subUr: 'Kitab fi Ma\'rifat al-Hiyal al-Handasiyya',
+        subEn: 'Sinking Tarjahar Float Bowl & Camshaft Automation',
+        scholar: 'Badi al-Zaman Abu al-Izz Ismail al-Jazari',
+        arabic: 'الجامع بين العلم والعمل النافع في صناعة الحيل',
+        m1Label: 'MECHANISM',
+        m1Val: 'Tarjahar Float + Gears',
+        m2Label: 'CYCLE PRECISION',
+        m2Val: '30-Min Hydro Cycle',
+        pos: { x: -24, y: 4.5, z: 20 },
+        cam: { radius: 24, theta: 0.55, phi: 1.15 },
+        descUr: 'Father of Robotics aur Mechanical Engineering, Ismail al-Jazari ne pani ke dabao (buoyancy), camshafts, aur interlocking gears ki madad se khud-kaar (programmable) Water Clocks aur machines ijad keen:',
+        descEn: 'Ismail al-Jazari, the pioneer of robotics and mechanical engineering, designed intricate water-powered clocks and automata driven by buoyancy floats, pulleys, and segmental gears:',
+        bulletsUr: [
+          '🥣 <strong>1. Doobta Hua Pyala (Tarjahar Bowl):</strong> Niche shaffaf (transparent) pani ke tank mein aik chota surakh-dar tabe (copper) ka pyala ahista ahista pani bharne se niche doobta hai.',
+          '⛓️ <strong>2. Pulley & Counterweight Chain:</strong> Jaise hi pyala niche jata hai, us se bandhi zanjeer upar lage brass gears aur waqt ke dial (time disc) ko ghumati hai.',
+          '🔄 <strong>3. Automatic Reset Loop:</strong> Jab pyala teh tak pohanchta hai to automaton ghanti bajata hai aur pyala khali ho kar dobara satah par tairne lagta hai!'
+        ],
+        bulletsEn: [
+          '🥣 <strong>1. Perforated Sinking Bowl (Tarjahar):</strong> Inside the lower glass water reservoir, a calibrated brass bowl slowly fills with water through a tiny orifice and sinks.',
+          '⛓️ <strong>2. Pulley & Interlocking Brass Gears:</strong> The sinking float pulls a tension cord that drives the upper gear train and rotating hour indicators.',
+          '🔄 <strong>3. Closed-Loop Reset:</strong> At the bottom of the stroke, the mechanism tips the bowl to empty it, floating it back to the surface for the next cycle.'
+        ],
+        legacyUr: 'Al-Jazari ne Crankshaft, Camshaft, aur Twin-Cylinder Water Pump ijad kiye jin ke baghair aaj ke steam aur car engines namumkin thay.',
+        legacyEn: 'Al-Jazari’s inventions of the crankshaft, camshaft, and twin-cylinder reciprocating pump laid the groundwork for modern mechanical engineering.'
+      },
+      {
+        id: 4,
+        badge: 'WING 04 // ROOFTOP OBSERVATORY & ASTROLABE',
+        years: '880 – 950 CE',
+        titleUr: 'Al-Battani & Mariam al-Asturlabi Ki Rooftop Observatory',
+        titleEn: 'Al-Battani & Mariam al-Asturlabi’s Astrolabe Observatory',
+        subUr: '3D Brass Astrolabe, Sitaron Ki Bulandi & Qibla Calculation',
+        subEn: 'Celestial Sphere, Solar Year Precision & Spherical Trigonometry',
+        scholar: 'Al-Battani & Mariam al-Asturlabi',
+        arabic: 'الأسطرلاب والمرصد الفلكي',
+        m1Label: 'STAR ALTITUDE',
+        m1Val: '42° Above Horizon',
+        m2Label: 'QIBLA AZIMUTH',
+        m2Val: '199.8° SSW (Makkah)',
+        pos: { x: 24, y: 5.5, z: 20 },
+        cam: { radius: 22, theta: -0.5, phi: 1.08 },
+        descUr: 'Bayt al-Hikmah ki rasadgah (observatory) mein Al-Battani, Al-Farghani aur Mariam al-Asturlabi jaise mahireen-e-falakiyat ne paital (brass) ke Astrolabes aur Armillary Spheres se sitaron ki harakat aur Qibla ka rukh maloom kiya:',
+        descEn: 'In the astronomical observatories of Baghdad and Syria, scholars like Al-Battani and master instrument-maker Mariam al-Asturlabi engineered brass Astrolabes—analog celestial computers:',
+        bulletsUr: [
+          '🧭 <strong>Analog Pocket Computer (Astrolabe):</strong> Astrolabe ki ghoomti hui jali (Rete) aur pointer (Alidade) se waqt, suraj/sitaron ki bulandi, aur Makkah (Qibla) ka zawiya bilkul durust nikala jata tha.',
+          '☀️ <strong>Al-Battani Ki Solar Year Accuracy:</strong> Al-Battani ne 9वीं sadi mein zameen ke suraj ke gird chakar (Solar Year) ka waqt 365 din, 5 ghante, 46 minute aur 24 second nikala—jo aaj ke jadid hisab se sirf 2 minute ke farq par hai!',
+          '✨ <strong>Spherical Trigonometry:</strong> Namaz ke auqat aur Qibla ki simt maloom karne ke liye Muslim astronomers ne Spherical Trigonometry ke qawaneen murattab kiye.'
+        ],
+        bulletsEn: [
+          '🧭 <strong>The Brass Astrolabe:</strong> By sighting a star through the rotating Alidade pointer, astronomers solved spherical trigonometry problems in seconds without pen and paper.',
+          '☀️ <strong>Al-Battani’s Solar Year:</strong> Calculated the length of the solar year as 365 days, 5 hours, 46 minutes, and 24 seconds—within two minutes of modern atomic measurements.',
+          '🕋 <strong>Qibla & Navigation:</strong> Computed exact great-circle azimuth bearings from Baghdad to Makkah (199.8° SSW).'
+        ],
+        legacyUr: 'Copernicus ne apni mashhoor kitab mein Al-Battani ka 23 se zyada martaba hawala diya hai!',
+        legacyEn: 'Nicolaus Copernicus cited Al-Battani over 23 times in De revolutionibus orbium coelestium.'
+      }
+    ];
+
+    const TIMELINE_EVENTS = [
+      { year: 762, title: '762 CE — Foundation of Madinat al-Salam (Round City)', desc: 'Caliph Al-Mansur lays the circular brick foundations of Baghdad along the Tigris River.' },
+      { year: 786, title: '786 CE — Reign of Harun al-Rashid & Khizanat al-Hikmah', desc: 'Royal library and manuscript collection established; first paper mills opened in Baghdad.' },
+      { year: 830, title: '830 CE — Peak of Bayt al-Hikmah & Al-Khwarizmi’s Algebra', desc: 'Caliph Al-Ma\'mun expands the House of Wisdom; Al-Khwarizmi publishes Kitab al-Jabr and Banu Musa brothers write Book of Ingenious Devices.' },
+      { year: 900, title: '900 CE — Al-Battani & Al-Razi Golden Era', desc: 'Al-Battani refines solar year & trigonometry; Al-Razi (Rhazes) pioneers clinical medicine in Baghdad hospitals.' },
+      { year: 950, title: '950 CE — Mariam al-Asturlabi’s Complex Astrolabes', desc: 'Master astronomer Mariam al-Asturlabi crafts intricate multi-plate brass astrolabes.' },
+      { year: 1021, title: '1021 CE — Ibn al-Haytham Completes Kitab al-Manazir', desc: 'Ibn al-Haytham proves the laws of optics via the Camera Obscura and establishes the experimental scientific method.' },
+      { year: 1206, title: '1206 CE — Al-Jazari Publishes Book of Mechanical Devices', desc: 'Ismail al-Jazari documents the Elephant Water Clock, crankshaft, camshaft, and twin-cylinder water pump.' }
+    ];
+
+    // =========================================================================
+    // 2. THREE.JS 3D SCENE: ROUND CITY OF BAGHDAD + 4 SCHOLAR LABORATORIES
+    // =========================================================================
+    const canvas = document.getElementById('baghdad-canvas');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050914);
+    scene.fog = new THREE.FogExp2(0x050914, 0.0042);
+
+    const camera = new THREE.PerspectiveCamera(44, window.innerWidth / window.innerHeight, 0.5, 600);
+    const camTarget = new THREE.Vector3(0, 6, 0);
+    const orbit = {
+      theta: 0.45,
+      phi: 1.05,
+      radius: 85,
+      isDragging: false,
+      isPanning: false,
+      prevX: 0,
+      prevY: 0
+    };
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
+
+    // Sky & Courtyard Lights
+    const ambientLight = new THREE.AmbientLight(0xdbeafe, 0.55);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfef08a, 1.1);
+    sunLight.position.set(55, 95, 45);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    scene.add(sunLight);
+
+    // Warm Golden Lantern PointLight over Central Bayt al-Hikmah Dome
+    const domeLanternLight = new THREE.PointLight(0xf59e0b, 3.2, 65);
+    domeLanternLight.position.set(0, 18, 0);
+    scene.add(domeLanternLight);
+
+    // Starfield for Baghdad Night Sky
+    const STAR_COUNT = 2200;
+    const starGeo = new THREE.BufferGeometry();
+    const starPos = new Float32Array(STAR_COUNT * 3);
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const r = 180 + Math.random() * 140;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI * 0.48;
+      starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      starPos[i * 3 + 1] = r * Math.cos(phi) + 10;
+      starPos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const starMaterial = new THREE.PointsMaterial({ color: 0xfef08a, size: 0.9, transparent: true, opacity: 0.85 });
+    const starsMesh = new THREE.Points(starGeo, starMaterial);
+    scene.add(starsMesh);
+
+    // --- 2A. ROUND CITY OF BAGHDAD (MADINAT AL-SALAM) & TIGRIS RIVER ---
+    const cityGroup = new THREE.Group();
+    scene.add(cityGroup);
+
+    const sandstoneMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.78, metalness: 0.12 });
+    const darkSandMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85, metalness: 0.08 });
+    const turquoiseMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x0369a1, emissiveIntensity: 0.3, roughness: 0.25, metalness: 0.55 });
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xd97706, emissiveIntensity: 0.45, roughness: 0.2, metalness: 0.88 });
+
+    // Desert & Tigris River Ground Plane
+    const groundMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(115, 115, 2, 64),
+      new THREE.MeshStandardMaterial({ color: 0x1e1b18, roughness: 0.9 })
+    );
+    groundMesh.position.y = -1;
+    groundMesh.receiveShadow = true;
+    cityGroup.add(groundMesh);
+
+    // Tigris River curving past the eastern wall of the Round City
+    const tigrisCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(62, 0.2, -95),
+      new THREE.Vector3(54, 0.2, -30),
+      new THREE.Vector3(58, 0.2, 35),
+      new THREE.Vector3(72, 0.2, 95)
+    ]);
+    const tigrisGeo = new THREE.TubeGeometry(tigrisCurve, 64, 7.5, 12, false);
+    const tigrisMesh = new THREE.Mesh(
+      tigrisGeo,
+      new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.18, metalness: 0.75 })
+    );
+    tigrisMesh.scale.set(1.3, 0.08, 1.0);
+    cityGroup.add(tigrisMesh);
+
+    // Outer & Inner Concentric Circular Walls of Madinat al-Salam
+    function createCircularWall(radius, height, thickness) {
+      const shape = new THREE.Shape();
+      shape.absarc(0, 0, radius + thickness / 2, 0, Math.PI * 2, false);
+      const hole = new THREE.Path();
+      hole.absarc(0, 0, radius - thickness / 2, 0, Math.PI * 2, true);
+      shape.holes.push(hole);
+
+      const extrude = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false, curveSegments: 64 });
+      extrude.rotateX(-Math.PI / 2);
+      const mesh = new THREE.Mesh(extrude, sandstoneMat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    cityGroup.add(createCircularWall(44, 5.5, 2.2));
+    cityGroup.add(createCircularWall(34, 7.2, 2.6));
+
+    // 4 Cardinal Gates (Kufa, Basra, Khurasan, Syria) with Turquoise Domes
+    [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].forEach(angle => {
+      const gateGrp = new THREE.Group();
+      const gx = Math.cos(angle) * 44;
+      const gz = Math.sin(angle) * 44;
+      gateGrp.position.set(gx, 0, gz);
+      gateGrp.rotation.y = -angle;
+
+      const gateHouse = new THREE.Mesh(new THREE.BoxGeometry(6.5, 9.5, 7.5), darkSandMat);
+      gateHouse.position.y = 4.75;
+      const gateDome = new THREE.Mesh(new THREE.SphereGeometry(2.8, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2), turquoiseMat);
+      gateDome.position.y = 9.5;
+      gateGrp.add(gateHouse, gateDome);
+      cityGroup.add(gateGrp);
+    });
+
+    // Central Bayt al-Hikmah (House of Wisdom) Grand Complex & Green/Turquoise Dome
+    const hikmahBase = new THREE.Mesh(new THREE.BoxGeometry(15, 8.5, 15), sandstoneMat);
+    hikmahBase.position.y = 4.25;
+    hikmahBase.castShadow = true;
+    cityGroup.add(hikmahBase);
+
+    // Octagonal Drum & Grand Turquoise/Emerald Dome of the Caliph & Library
+    const drumMesh = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 6.2, 3.2, 8), darkSandMat);
+    drumMesh.position.y = 10.1;
+    const grandDome = new THREE.Mesh(
+      new THREE.SphereGeometry(6.0, 32, 24, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      turquoiseMat
+    );
+    grandDome.position.y = 11.5;
+    const spireFinial = new THREE.Mesh(new THREE.ConeGeometry(0.45, 2.8, 12), goldMat);
+    spireFinial.position.y = 18.2;
+    cityGroup.add(drumMesh, grandDome, spireFinial);
+
+    // 8 Glowing Courtyard Lanterns around Central Plaza
+    const lanternMeshes = [];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const lantern = new THREE.Mesh(
+        new THREE.SphereGeometry(0.48, 12, 12),
+        new THREE.MeshBasicMaterial({ color: 0xfef08a })
+      );
+      lantern.position.set(Math.cos(a) * 12.5, 2.6, Math.sin(a) * 12.5);
+      cityGroup.add(lantern);
+      lanternMeshes.push(lantern);
+    }
+
+    // =========================================================================
+    // 3. WING 1: AL-KHWARIZMI'S 3D GEOMETRIC ALGEBRA SOLVER (x² + 10x = 39)
+    // =========================================================================
+    const algebraGroup = new THREE.Group();
+    algebraGroup.position.set(-24, 0.5, -20);
+    scene.add(algebraGroup);
+
+    // Marble Platform
+    const labPedestalGeo = new THREE.CylinderGeometry(8.5, 9.2, 1.0, 32);
+    const labPedestalMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4, metalness: 0.5 });
+    algebraGroup.add(new THREE.Mesh(labPedestalGeo, labPedestalMat));
+
+    // Scale: 1 algebra unit = 1.15 3D units. Let x = 3 => x^2 is 3x3, wings are 2.5x3, corners are 2.5x2.5
+    const S_UNIT = 0.95;
+    const xLen = 3 * S_UNIT;
+    const wLen = 2.5 * S_UNIT;
+    const blockH = 1.1;
+
+    // 1. Center Blue Block: x^2 (3 x 3 = 9)
+    const x2Mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(xLen, blockH, xLen),
+      new THREE.MeshStandardMaterial({ color: 0x0ea5e9, emissive: 0x0284c7, emissiveIntensity: 0.35, roughness: 0.25 })
+    );
+    x2Mesh.position.set(0, 1.2, 0);
+    algebraGroup.add(x2Mesh);
+
+    // 2. Four Gold Rectangles: four (2.5 * x) wings = 10x (Total area = 30)
+    const wingRects = [];
+    const offsetWing = (xLen + wLen) / 2 + 0.08;
+    const wingCoords = [
+      { x: offsetWing, z: 0, w: wLen, d: xLen },
+      { x: -offsetWing, z: 0, w: wLen, d: xLen },
+      { x: 0, z: offsetWing, w: xLen, d: wLen },
+      { x: 0, z: -offsetWing, w: xLen, d: wLen }
+    ];
+    wingCoords.forEach(wc => {
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(wc.w, blockH, wc.d),
+        new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xb45309, emissiveIntensity: 0.35, roughness: 0.25 })
+      );
+      m.position.set(wc.x, 1.2, wc.z);
+      algebraGroup.add(m);
+      wingRects.push({ mesh: m, targetX: wc.x, targetZ: wc.z });
+    });
+
+    // 3. Four Emerald Corner Squares: four (2.5 x 2.5 = 6.25) blocks = 25 (Completing the 64 Square)
+    const cornerSquares = [];
+    const cornerSigns = [[1, 1], [-1, 1], [1, -1], [-1, -1]];
+    cornerSigns.forEach(([sx, sz]) => {
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(wLen, blockH, wLen),
+        new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x047857, emissiveIntensity: 0.45, roughness: 0.25 })
+      );
+      m.position.set(sx * offsetWing, 1.2, sz * offsetWing);
+      algebraGroup.add(m);
+      cornerSquares.push({ mesh: m, targetX: sx * offsetWing, targetZ: sz * offsetWing });
+    });
+
+    // =========================================================================
+    // 4. WING 2: IBN AL-HAYTHAM'S 3D CAMERA OBSCURA (PINHOLE OPTICS LAB)
+    // =========================================================================
+    const opticsGroup = new THREE.Group();
+    opticsGroup.position.set(24, 0.5, -20);
+    scene.add(opticsGroup);
+    opticsGroup.add(new THREE.Mesh(labPedestalGeo, labPedestalMat));
+
+    // Pinhole Aperture Wall (Center X = 0) & Projection Screen Wall (Right X = +4.8)
+    const pinholeWall = new THREE.Mesh(
+      new THREE.BoxGeometry(0.35, 6.5, 6.5),
+      new THREE.MeshStandardMaterial({ color: 0x334155, transparent: true, opacity: 0.82 })
+    );
+    pinholeWall.position.set(0, 3.75, 0);
+    const apertureRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.42, 0.08, 12, 24),
+      goldMat
+    );
+    apertureRing.rotation.y = Math.PI / 2;
+    apertureRing.position.set(0, 3.8, 0);
+
+    const screenWall = new THREE.Mesh(
+      new THREE.BoxGeometry(0.35, 6.5, 6.5),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 })
+    );
+    screenWall.position.set(4.8, 3.75, 0);
+    opticsGroup.add(pinholeWall, apertureRing, screenWall);
+
+    // Exterior Upright Candle (Left X = -4.8)
+    const extCandleGroup = new THREE.Group();
+    const waxBody = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.5, 16), new THREE.MeshStandardMaterial({ color: 0xf8fafc }));
+    const extFlame = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.75, 16), new THREE.MeshBasicMaterial({ color: 0xf97316 }));
+    extFlame.position.y = 1.1;
+    extCandleGroup.add(waxBody, extFlame);
+    extCandleGroup.position.set(-4.8, 3.8, 0);
+    opticsGroup.add(extCandleGroup);
+
+    // Interior Inverted Projected Image on Screen Wall (Right X = +4.55)
+    const projCandleGroup = new THREE.Group();
+    const projWax = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 1.4, 16), new THREE.MeshBasicMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.85 }));
+    const projFlame = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.75, 16), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+    // Upside down! Flame points downward (-Y)
+    projFlame.rotation.z = Math.PI;
+    projFlame.position.y = -1.05;
+    projCandleGroup.add(projWax, projFlame);
+    projCandleGroup.position.set(4.55, 3.8, 0);
+    opticsGroup.add(projCandleGroup);
+
+    // Two Crossing Light Ray Lines (Top of Flame -> Pinhole -> Inverted Bottom, and Base -> Pinhole -> Inverted Top)
+    const rayTopGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-4.8, 4.9, 0), new THREE.Vector3(0, 3.8, 0), new THREE.Vector3(4.55, 2.7, 0)]);
+    const rayBotGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-4.8, 3.0, 0), new THREE.Vector3(0, 3.8, 0), new THREE.Vector3(4.55, 4.6, 0)]);
+    const rayTopLine = new THREE.Line(rayTopGeo, new THREE.LineBasicMaterial({ color: 0xfef08a }));
+    const rayBotLine = new THREE.Line(rayBotGeo, new THREE.LineBasicMaterial({ color: 0x38bdf8 }));
+    opticsGroup.add(rayTopLine, rayBotLine);
+
+    // =========================================================================
+    // 5. WING 3: AL-JAZARI'S WATER CLOCK & GEAR AUTOMATON
+    // =========================================================================
+    const clockGroup = new THREE.Group();
+    clockGroup.position.set(-24, 0.5, 20);
+    scene.add(clockGroup);
+    clockGroup.add(new THREE.Mesh(labPedestalGeo, labPedestalMat));
+
+    // Transparent Water Tank Reservoir
+    const waterTank = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.6, 2.6, 4.2, 28),
+      new THREE.MeshStandardMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.35, roughness: 0.15 })
+    );
+    waterTank.position.set(0, 2.6, 0);
+    clockGroup.add(waterTank);
+
+    // Sinking Perforated Tarjahar Float Bowl inside Water Tank
+    const tarjaharBowl = new THREE.Mesh(
+      new THREE.SphereGeometry(1.15, 24, 16, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.55),
+      goldMat
+    );
+    tarjaharBowl.position.set(0, 3.8, 0);
+    clockGroup.add(tarjaharBowl);
+
+    // Upper Brass Arch Pillars & Interlocking Gear Train
+    [-2.4, 2.4].forEach(px => {
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 7.5, 16), sandstoneMat);
+      col.position.set(px, 4.2, 0);
+      clockGroup.add(col);
+    });
+
+    const mainClockGear = new THREE.Mesh(new THREE.TorusGeometry(1.55, 0.22, 12, 16), goldMat);
+    mainClockGear.position.set(0, 6.8, 0);
+    const gearSpokes = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.22, 0.22), goldMat);
+    mainClockGear.add(gearSpokes);
+
+    const secondaryGear = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.18, 12, 12), turquoiseMat);
+    secondaryGear.position.set(2.1, 7.8, 0);
+    clockGroup.add(mainClockGear, secondaryGear);
+
+    // Vertical Tension Cord connecting Sinking Bowl to Upper Gear
+    const cordGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 3.8, 0), new THREE.Vector3(0, 6.8, 0)]);
+    const cordLine = new THREE.Line(cordGeo, new THREE.LineBasicMaterial({ color: 0xfde047 }));
+    clockGroup.add(cordLine);
+
+    // =========================================================================
+    // 6. WING 4: AL-BATTANI & MARIAM AL-ASTURLABI'S 3D BRASS ASTROLABE
+    // =========================================================================
+    const astrolabeGroup = new THREE.Group();
+    astrolabeGroup.position.set(24, 0.5, 20);
+    scene.add(astrolabeGroup);
+    astrolabeGroup.add(new THREE.Mesh(labPedestalGeo, labPedestalMat));
+
+    const astroStand = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 1.2, 2.2, 16), darkSandMat);
+    astroStand.position.y = 1.5;
+    astrolabeGroup.add(astroStand);
+
+    const astroBody = new THREE.Group();
+    astroBody.position.set(0, 5.4, 0);
+    astrolabeGroup.add(astroBody);
+
+    // Outer Mater Rim, Tympan Plate, and Star Rete Ring
+    const materRim = new THREE.Mesh(new THREE.TorusGeometry(3.1, 0.22, 20, 64), goldMat);
+    const reteRing = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.12, 16, 48), turquoiseMat);
+    reteRing.position.z = 0.12;
+    const eqCircle = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.09, 16, 36), goldMat);
+    eqCircle.position.set(0, 0.45, 0.16);
+
+    // Rotating Alidade Sighting Rule Pointer
+    const alidadeBar = new THREE.Mesh(
+      new THREE.BoxGeometry(6.4, 0.22, 0.12),
+      new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.6 })
+    );
+    alidadeBar.position.z = 0.24;
+    astroBody.add(materRim, reteRing, eqCircle, alidadeBar);
+
+    // Selection Focus Ring on Ground
+    const wingBeacon = new THREE.Mesh(
+      new THREE.RingGeometry(8.8, 9.8, 48),
+      new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide })
+    );
+    wingBeacon.rotation.x = -Math.PI / 2;
+    wingBeacon.position.y = 0.6;
+    scene.add(wingBeacon);
+
+    // =========================================================================
+    // 7. 2D PROJECTED HTML CALLOUT PINS & INTERACTIVE LAB CONTROLLERS
+    // =========================================================================
+    const pinsLayer = document.getElementById('pins-layer');
+    const pinList = [];
+
+    function build3DPins() {
+      pinsLayer.innerHTML = '';
+      pinList.length = 0;
+
+      WINGS.forEach((w, idx) => {
+        const el = document.createElement('div');
+        el.className = 'wing-pin';
+        el.onclick = (e) => {
+          e.stopPropagation();
+          selectWing(idx);
+        };
+        el.innerHTML = `
+          <div class="flex flex-col items-center">
+            <div class="px-2.5 py-1 rounded-xl bg-slate-950/90 border border-amber-400/60 shadow-xl text-center">
+              <div class="font-display font-bold text-[11px] text-white whitespace-nowrap">${w.scholar}</div>
+              <div class="text-[9px] font-mono text-amber-300">${w.m1Val}</div>
+            </div>
+            <div class="w-[2px] h-2.5 bg-amber-400"></div>
+            <div class="w-6 h-6 rounded-full bg-amber-400 text-slate-950 font-mono font-black text-xs flex items-center justify-center border-2 border-white shadow">
+              ${idx}
+            </div>
+          </div>
+        `;
+        pinsLayer.appendChild(el);
+        pinList.push({
+          el,
+          idx,
+          worldPos: new THREE.Vector3(w.pos.x, w.pos.y + 6.5, w.pos.z)
+        });
+      });
+    }
+
+    function updateProjectedPins() {
+      const halfW = window.innerWidth / 2;
+      const halfH = window.innerHeight / 2;
+
+      pinList.forEach(item => {
+        if (!showPins) {
+          item.el.style.display = 'none';
+          return;
+        }
+        const v = item.worldPos.clone().project(camera);
+        if (v.z > 1) {
+          item.el.style.display = 'none';
+          return;
+        }
+        item.el.style.display = 'block';
+        item.el.style.left = `${v.x * halfW + halfW}px`;
+        item.el.style.top = `${-v.y * halfH + halfH}px`;
+        item.el.classList.toggle('active-pin', item.idx === activeWingIdx);
+      });
+    }
+
+    function selectWing(idx, fly = true) {
+      activeWingIdx = (idx + WINGS.length) % WINGS.length;
+      const w = WINGS[activeWingIdx];
+      const isUr = currentLang === 'ur';
+
+      for (let i = 0; i < WINGS.length; i++) {
+        const t = document.getElementById(`tab-wing-${i}`);
+        if (t) t.classList.toggle('active', i === activeWingIdx);
+      }
+
+      document.getElementById('lab-badge').textContent = w.badge;
+      document.getElementById('lab-year').textContent = w.years;
+      document.getElementById('lab-title').textContent = isUr ? w.titleUr : w.titleEn;
+      document.getElementById('lab-subtitle').textContent = isUr ? w.subUr : w.subEn;
+      document.getElementById('metric-1-label').textContent = w.m1Label;
+      document.getElementById('metric-1-val').textContent = w.m1Val;
+      document.getElementById('metric-2-label').textContent = w.m2Label;
+      document.getElementById('metric-2-val').textContent = w.m2Val;
+
+      document.getElementById('codex-scholar').textContent = w.scholar;
+      document.getElementById('codex-treatise').textContent = w.arabic;
+      document.getElementById('codex-desc').textContent = isUr ? w.descUr : w.descEn;
+      const bullets = isUr ? w.bulletsUr : w.bulletsEn;
+      document.getElementById('codex-bullets').innerHTML = bullets.map(b => `
+        <li class="p-2.5 rounded-xl bg-slate-950/80 border border-white/10 leading-relaxed">${b}</li>
+      `).join('');
+      document.getElementById('codex-legacy').textContent = isUr ? w.legacyUr : w.legacyEn;
+
+      renderWingExperimentControls(activeWingIdx);
+
+      gsap.to(wingBeacon.position, { x: w.pos.x, z: w.pos.z, duration: 0.7, ease: 'power2.out' });
+
+      if (fly) {
+        gsap.to(camTarget, { x: w.pos.x, y: w.pos.y, z: w.pos.z, duration: 1.25, ease: 'power3.out' });
+        gsap.to(orbit, {
+          radius: w.cam.radius,
+          theta: w.cam.theta,
+          phi: w.cam.phi,
+          duration: 1.25,
+          ease: 'power3.out'
+        });
+      }
+    }
+
+    function stepWing(dir) {
+      selectWing(activeWingIdx + dir, true);
+    }
+
+    function renderWingExperimentControls(idx) {
+      const box = document.getElementById('wing-interactive-controls');
+
+      if (idx === 0) {
+        box.innerHTML = `
+          <div class="text-[11px] text-amber-300 font-bold">🏛️ EXPLORE THE ROUND CITY</div>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Use the buttons below to jump directly to any of the 4 Golden Age laboratories inside Baghdad:
+          </p>
+          <div class="grid grid-cols-2 gap-1.5 pt-1">
+            <button onclick="selectWing(1)" class="py-1.5 px-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/40 text-amber-200 font-bold cursor-pointer">📐 1. Algebra Lab</button>
+            <button onclick="selectWing(2)" class="py-1.5 px-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/40 text-sky-200 font-bold cursor-pointer">🕯️ 2. Optics Room</button>
+            <button onclick="selectWing(3)" class="py-1.5 px-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/40 text-emerald-200 font-bold cursor-pointer">⚙️ 3. Water Clock</button>
+            <button onclick="selectWing(4)" class="py-1.5 px-2 rounded-xl bg-purple-500/20 hover:bg-purple-500/35 border border-purple-400/40 text-purple-200 font-bold cursor-pointer">🧭 4. Astrolabe</button>
+          </div>
+        `;
+      } else if (idx === 1) {
+        box.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-amber-300 font-bold">📐 COMPLETING THE SQUARE</span>
+            <span id="alg-step-label" class="text-emerald-400 font-bold">Area = 64 (x = 3)</span>
+          </div>
+          <input type="range" min="0" max="100" value="${Math.round(algebraStepProgress * 100)}"
+                 oninput="updateAlgebraBlocks(this.value)" class="w-full" />
+          <div class="grid grid-cols-3 gap-1.5 text-[10px]">
+            <button onclick="updateAlgebraBlocks(0)" class="py-1 rounded bg-sky-500/20 border border-sky-400/40 text-sky-300 cursor-pointer">1. x² (9)</button>
+            <button onclick="updateAlgebraBlocks(50)" class="py-1 rounded bg-amber-500/20 border border-amber-400/40 text-amber-300 cursor-pointer">2. +10x (39)</button>
+            <button onclick="updateAlgebraBlocks(100)" class="py-1 rounded bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 cursor-pointer">3. +25 (64)</button>
+          </div>
+        `;
+      } else if (idx === 2) {
+        box.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-amber-300 font-bold">🕯️ MOVE EXTERIOR CANDLE (Y)</span>
+            <span id="optics-y-label" class="text-sky-300 font-bold">+${candleHeightY.toFixed(1)}m</span>
+          </div>
+          <input type="range" min="-15" max="25" value="${Math.round((candleHeightY - 3.8) * 10)}"
+                 oninput="updateCameraObscura(this.value)" class="w-full" />
+          <p class="text-[10px] text-slate-400">
+            Notice how raising the outer candle causes the straight light rays crossing the pinhole to project the flame <strong>downward (inverted)</strong> on the inner screen!
+          </p>
+        `;
+      } else if (idx === 3) {
+        box.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-amber-300 font-bold">🥣 TARJAHAR WATER FLOW RATE</span>
+            <span id="clock-rate-label" class="text-emerald-300 font-bold">${clockFlowSpeed.toFixed(1)}x Speed</span>
+          </div>
+          <input type="range" min="2" max="35" value="${Math.round(clockFlowSpeed * 10)}"
+                 oninput="updateClockSpeed(this.value)" class="w-full" />
+          <p class="text-[10px] text-slate-400">
+            Watch the perforated brass bowl sink inside the reservoir, pulling the chain to turn the upper timing gears before emptying and floating back up.
+          </p>
+        `;
+      } else if (idx === 4) {
+        box.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-amber-300 font-bold">🧭 ASTROLABE ALIDADE ANGLE</span>
+            <span id="astro-angle-label" class="text-sky-300 font-bold">${astrolabeAngleDeg}° Alt</span>
+          </div>
+          <input type="range" min="5" max="85" value="${astrolabeAngleDeg}"
+                 oninput="updateAstrolabeAngle(this.value)" class="w-full" />
+          <div class="flex justify-between text-[10px] text-slate-300 pt-1">
+            <span>Baghdad Lat: <strong>33.3° N</strong></span>
+            <span class="text-amber-300">Qibla: <strong>199.8° SSW</strong></span>
+          </div>
+        `;
+      }
+    }
+
+    // Lab 1 Interactive Logic: Al-Khwarizmi's Completing the Square
+    function updateAlgebraBlocks(val) {
+      algebraStepProgress = parseFloat(val) / 100;
+      const wingFactor = Math.min(1, algebraStepProgress * 2); // 0 -> 1 in first half
+      const cornerFactor = Math.max(0, (algebraStepProgress - 0.5) * 2); // 0 -> 1 in second half
+
+      wingRects.forEach(w => {
+        const dist = 1 + (1 - wingFactor) * 1.4;
+        w.mesh.position.x = w.targetX * dist;
+        w.mesh.position.z = w.targetZ * dist;
+        w.mesh.scale.setScalar(Math.max(0.01, wingFactor));
+      });
+
+      cornerSquares.forEach(c => {
+        const dist = 1 + (1 - cornerFactor) * 1.6;
+        c.mesh.position.x = c.targetX * dist;
+        c.mesh.position.z = c.targetZ * dist;
+        c.mesh.scale.setScalar(Math.max(0.01, cornerFactor));
+      });
+
+      const lbl = document.getElementById('alg-step-label');
+      if (lbl) {
+        if (algebraStepProgress < 0.25) lbl.textContent = 'Step 1: x² = 9';
+        else if (algebraStepProgress < 0.75) lbl.textContent = 'Step 2: x² + 10x = 39';
+        else lbl.textContent = 'Step 3: 39 + 25 = 64 ⇒ x = 3';
+      }
+    }
+
+    // Lab 2 Interactive Logic: Ibn al-Haytham's Camera Obscura Ray Tracer
+    function updateCameraObscura(val) {
+      const offset = parseFloat(val) / 10; // -1.5 to +2.5
+      const extY = 3.8 + offset;
+      candleHeightY = extY;
+      extCandleGroup.position.y = extY;
+
+      // Inverted image moves in opposite direction around pinhole Y = 3.8
+      const projY = 3.8 - offset;
+      projCandleGroup.position.y = projY;
+
+      // Update straight light rays crossing through pinhole (0, 3.8, 0)
+      const topPts = [
+        new THREE.Vector3(-4.8, extY + 1.1, 0),
+        new THREE.Vector3(0, 3.8, 0),
+        new THREE.Vector3(4.55, projY - 1.1, 0)
+      ];
+      const botPts = [
+        new THREE.Vector3(-4.8, extY - 0.75, 0),
+        new THREE.Vector3(0, 3.8, 0),
+        new THREE.Vector3(4.55, projY + 0.75, 0)
+      ];
+      rayTopLine.geometry.setFromPoints(topPts);
+      rayBotLine.geometry.setFromPoints(botPts);
+
+      const lbl = document.getElementById('optics-y-label');
+      if (lbl) lbl.textContent = `Candle Y: ${extY.toFixed(1)}m → Inverted!`;
+    }
+
+    // Lab 3 Interactive Logic: Al-Jazari Water Clock Speed
+    function updateClockSpeed(val) {
+      clockFlowSpeed = parseFloat(val) / 10;
+      const lbl = document.getElementById('clock-rate-label');
+      if (lbl) lbl.textContent = `${clockFlowSpeed.toFixed(1)}x Speed`;
+    }
+
+    // Lab 4 Interactive Logic: Rooftop Astrolabe Sighting Angle
+    function updateAstrolabeAngle(val) {
+      astrolabeAngleDeg = parseInt(val, 10);
+      const rad = THREE.MathUtils.degToRad(astrolabeAngleDeg);
+      alidadeBar.rotation.z = rad;
+      reteRing.rotation.z = -rad * 0.6;
+      const lbl = document.getElementById('astro-angle-label');
+      if (lbl) lbl.textContent = `${astrolabeAngleDeg}° Star Alt`;
+      document.getElementById('metric-1-val').textContent = `${astrolabeAngleDeg}° Above Horizon`;
+    }
+
+    // Day-to-Starry-Night Transition Slider
+    function setSkyTime(val) {
+      const nightFactor = parseFloat(val) / 100; // 0 = Bright Abbasid Day, 1 = Starry Baghdad Night
+      document.getElementById('sky-icon').textContent = nightFactor > 0.5 ? '🌙' : '☀️';
+
+      const dayCol = new THREE.Color(0x0ea5e9);
+      const nightCol = new THREE.Color(0x050914);
+      const sky = dayCol.clone().lerp(nightCol, nightFactor);
+
+      scene.background.copy(sky);
+      scene.fog.color.copy(sky);
+      sunLight.intensity = 1.65 * (1 - nightFactor * 0.78);
+      ambientLight.intensity = 0.85 * (1 - nightFactor * 0.45);
+      domeLanternLight.intensity = 1.0 + nightFactor * 3.2;
+      starMaterial.opacity = Math.max(0, (nightFactor - 0.3) * 1.4);
+    }
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'ur' ? 'en' : 'ur';
+      selectWing(activeWingIdx, false);
+    }
+
+    function togglePins() {
+      showPins = !showPins;
+    }
+
+    function scrubTimeline(yearVal) {
+      const yr = parseInt(yearVal, 10);
+      document.getElementById('timeline-year-badge').textContent = `${yr} CE`;
+
+      // Find closest historical event
+      let closest = TIMELINE_EVENTS[0];
+      TIMELINE_EVENTS.forEach(ev => {
+        if (Math.abs(ev.year - yr) <= Math.abs(closest.year - yr)) closest = ev;
+      });
+      document.getElementById('timeline-event-title').textContent = closest.title;
+      document.getElementById('timeline-event-desc').textContent = closest.desc;
+    }
+
+    // =========================================================================
+    // 8. WEB AUDIO API AMBIENT ARABIC OUD (HIJAZ SCALE) & DESERT BREEZE
+    // =========================================================================
+    let audioCtx = null;
+    let oudInterval = null;
+    let audioActive = false;
+    // Hijaz Maqam frequencies (D, Eb, F#, G, A, Bb, C#, D)
+    const HIJAZ_NOTES = [146.83, 155.56, 185.00, 196.00, 220.00, 233.08, 277.18, 293.66];
+
+    function toggleOudAudio() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      audioActive = !audioActive;
+      const btn = document.getElementById('btn-audio');
+      if (audioActive) {
+        btn.textContent = '🔊 Oud: ON';
+        btn.classList.add('active');
+        playOudNote();
+        oudInterval = setInterval(playOudNote, 1350);
+      } else {
+        btn.textContent = '🔇 Oud Audio';
+        btn.classList.remove('active');
+        clearInterval(oudInterval);
+      }
+    }
+
+    function playOudNote() {
+      if (!audioCtx || !audioActive) return;
+      const now = audioCtx.currentTime;
+      const freq = HIJAZ_NOTES[Math.floor(Math.random() * HIJAZ_NOTES.length)];
+
+      const osc = audioCtx.createOscillator();
+      const filter = audioCtx.createBiquadFilter();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1100, now);
+      filter.frequency.exponentialRampToValueAtTime(260, now + 1.1);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.14, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0008, now + 1.25);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(now);
+      osc.stop(now + 1.3);
+    }
+
+    // =========================================================================
+    // 9. POINTER ORBIT CONTROLS & 60FPS ANIMATION LOOP
+    // =========================================================================
+    canvas.addEventListener('pointerdown', e => {
+      orbit.isDragging = true;
+      orbit.isPanning = e.button === 2 || e.shiftKey;
+      orbit.prevX = e.clientX;
+      orbit.prevY = e.clientY;
+    });
+
+    window.addEventListener('pointermove', e => {
+      if (!orbit.isDragging) return;
+      const dx = e.clientX - orbit.prevX;
+      const dy = e.clientY - orbit.prevY;
+      orbit.prevX = e.clientX;
+      orbit.prevY = e.clientY;
+
+      if (orbit.isPanning) {
+        camTarget.x -= dx * 0.14;
+        camTarget.z -= dy * 0.14;
+      } else {
+        orbit.theta -= dx * 0.0065;
+        orbit.phi = THREE.MathUtils.clamp(orbit.phi - dy * 0.0065, 0.12, Math.PI / 2 - 0.04);
+      }
+    });
+
+    window.addEventListener('pointerup', () => { orbit.isDragging = false; });
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      orbit.radius = THREE.MathUtils.clamp(orbit.radius + e.deltaY * 0.06, 12, 160);
+    }, { passive: false });
+
+    const clock = new THREE.Clock();
+    let bowlCycle = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const elapsed = clock.getElapsedTime();
+
+      // 1. Animate Al-Jazari Sinking Tarjahar Water Bowl & Gears
+      bowlCycle = (bowlCycle + dt * 0.22 * clockFlowSpeed) % 1;
+      const bowlY = 4.1 - bowlCycle * 2.3;
+      tarjaharBowl.position.y = bowlY;
+      cordLine.geometry.setFromPoints([new THREE.Vector3(0, bowlY, 0), new THREE.Vector3(0, 6.8, 0)]);
+      mainClockGear.rotation.z = -bowlCycle * Math.PI * 2;
+      secondaryGear.rotation.z = bowlCycle * Math.PI * 3.2;
+
+      // 2. Gentle Astrolabe Rete & Lantern Shimmer
+      starsMesh.rotation.y = elapsed * 0.008;
+      const pulse = 1 + Math.sin(elapsed * 3.5) * 0.08;
+      wingBeacon.scale.set(pulse, pulse, 1);
+
+      // 3. Update Camera Spherical Orbit Position
+      camera.position.x = camTarget.x + orbit.radius * Math.sin(orbit.phi) * Math.sin(orbit.theta);
+      camera.position.y = camTarget.y + orbit.radius * Math.cos(orbit.phi);
+      camera.position.z = camTarget.z + orbit.radius * Math.sin(orbit.phi) * Math.cos(orbit.theta);
+      camera.lookAt(camTarget);
+
+      renderer.render(scene, camera);
+      updateProjectedPins();
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.onload = function () {
+      build3DPins();
+      selectWing(0, false);
+      setSkyTime(82);
+      animate();
+    };
+  </script>
+</body>
+</html>
